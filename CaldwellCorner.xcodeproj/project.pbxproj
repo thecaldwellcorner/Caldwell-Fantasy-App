@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXFileReference section */
+		CA1D00000000000000000005 /* CaldwellCorner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CaldwellCorner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CA1D00000000000000000002 /* CaldwellCorner */ = {isa = PBXFileSystemSynchronizedRootGroup; path = CaldwellCorner; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
