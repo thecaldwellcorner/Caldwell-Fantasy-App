@@ -47,6 +47,17 @@ Mapped to the PRD's 19 core features:
 
 Free vs. Premium gating is implemented throughout (AI message limits, locked advanced metrics, dynasty/betting/draft-guide gating) and can be toggled live via the paywall.
 
+## Backend data system
+
+A Node.js + TypeScript backend lives in [`backend/`](backend/). It ingests **trusted** data only — the **Sleeper public API** and **nflverse / nflfastR-style datasets** (no arbitrary web scraping) — normalizes it into a `PlayerMetrics` model (target share, air yards, routes run, snap share, red-zone usage, EPA team context, matchup difficulty, injury status, projected points, regression/breakout/confidence scores), stores it in **PostgreSQL** (with an in-memory fallback for dev/CI), and serves an AI `RecommendationEngine` for **start/sit, trade, waiver, and draft** decisions — each with a score, confidence rating, and plain-English reasoning.
+
+```bash
+cd backend && npm install && npm run dev   # http://localhost:8080
+npm test                                   # engine + normalizer unit tests
+```
+
+The iOS app talks to it through `CaldwellCorner/Services/BackendClient.swift` (+ the mirrored `PlayerMetrics` model). See [`backend/README.md`](backend/README.md) for full details.
+
 ## Project Structure
 
 ```
