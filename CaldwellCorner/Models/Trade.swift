@@ -21,6 +21,9 @@ struct ChatMessage: Identifiable, Hashable {
     let id = UUID()
     var role: Role
     var text: String
+    /// When present, the assistant message renders as a structured answer card
+    /// instead of a plain text bubble.
+    var answer: AssistantAnswer? = nil
     var timestamp: Date = Date()
 
     enum Role: String { case user, assistant }

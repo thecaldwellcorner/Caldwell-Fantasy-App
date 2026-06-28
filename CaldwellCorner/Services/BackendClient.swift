@@ -46,26 +46,26 @@ actor BackendClient {
 
     // MARK: - Recommendations
     func startSit(playerIds: [String], league: BackendLeagueSettings,
-                  season: Int? = nil, week: Int = 0) async throws -> [StartSitRecommendation] {
+                  season: Int? = nil, week: Int = 0) async throws -> [BackendStartSitRecommendation] {
         let body = StartSitRequest(league: league, playerIds: playerIds, season: season, week: week)
         let res: StartSitResponse = try await post("/api/recommendations/start-sit", body: body)
         return res.recommendations
     }
 
-    func waivers(league: BackendLeagueSettings, season: Int? = nil, week: Int = 0) async throws -> [WaiverRecommendation] {
+    func waivers(league: BackendLeagueSettings, season: Int? = nil, week: Int = 0) async throws -> [BackendWaiverRecommendation] {
         let body = LeagueRequest(league: league, season: season, week: week)
         let res: WaiverResponse = try await post("/api/recommendations/waiver", body: body)
         return res.recommendations
     }
 
-    func draft(league: BackendLeagueSettings, season: Int? = nil, week: Int = 0) async throws -> [DraftRecommendation] {
+    func draft(league: BackendLeagueSettings, season: Int? = nil, week: Int = 0) async throws -> [BackendDraftRecommendation] {
         let body = LeagueRequest(league: league, season: season, week: week)
         let res: DraftResponse = try await post("/api/recommendations/draft", body: body)
         return res.recommendations
     }
 
     func trade(give: [String], get: [String], league: BackendLeagueSettings,
-               season: Int? = nil, week: Int = 0) async throws -> TradeRecommendation {
+               season: Int? = nil, week: Int = 0) async throws -> BackendTradeRecommendation {
         let body = TradeRequest(league: league, give: give, get: get, season: season, week: week)
         let res: TradeResponse = try await post("/api/recommendations/trade", body: body)
         return res.recommendation
@@ -110,10 +110,10 @@ actor BackendClient {
 // MARK: - Request / response envelopes
 private struct PlayersResponse: Decodable { let players: [PlayerMetrics] }
 private struct SinglePlayerResponse: Decodable { let player: PlayerMetrics }
-private struct StartSitResponse: Decodable { let recommendations: [StartSitRecommendation] }
-private struct WaiverResponse: Decodable { let recommendations: [WaiverRecommendation] }
-private struct DraftResponse: Decodable { let recommendations: [DraftRecommendation] }
-private struct TradeResponse: Decodable { let recommendation: TradeRecommendation }
+private struct StartSitResponse: Decodable { let recommendations: [BackendStartSitRecommendation] }
+private struct WaiverResponse: Decodable { let recommendations: [BackendWaiverRecommendation] }
+private struct DraftResponse: Decodable { let recommendations: [BackendDraftRecommendation] }
+private struct TradeResponse: Decodable { let recommendation: BackendTradeRecommendation }
 
 private struct LeagueRequest: Encodable {
     let league: BackendLeagueSettings
