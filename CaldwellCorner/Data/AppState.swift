@@ -25,6 +25,9 @@ final class AppState: ObservableObject {
     @Published var reels: [ReelPost] = MockReels.reels
     @Published var savedReels: Set<UUID> = []
 
+    // Advanced analytics metrics (engine + AI assistant grounding)
+    @Published var playerMetrics: [PlayerMetrics] = MockMetrics.all
+
     // User
     @Published var profile: UserProfile = MockData.buildProfile()
     @Published var selectedLeagueID: UUID?
@@ -77,6 +80,28 @@ final class AppState: ObservableObject {
     }
 
     var savedReelPosts: [ReelPost] { reels.filter { savedReels.contains($0.id) } }
+
+    // MARK: - Metrics access (for the engine + AI assistant)
+    var engineContext: CaldwellEngine.Context { CaldwellEngine.Context(league: selectedLeague) }
+
+    /// Resolve metrics for a player name (loose match on full or last name).
+    func metrics(matching query: String) -> PlayerMetrics? {
+        let q = query.lowercased()
+        if let exact = playerMetrics.first(where: { $0.name.lowercased() == q }) { return exact }
+        return playerMetrics.first { m in
+            m.name.lowercased().contains(q) ||
+            (m.name.split(separator: " ").last.map { q.contains($0.lowercased()) } ?? false)
+        }
+    }
+
+    func metricsForWaiverPool(limit: Int = 12) -> [PlayerMetrics] {
+        // Lower-rostered, ascending-role types: proxy by breakout + lower overall.
+        playerMetrics
+            .filter { $0.hasCurrentData }
+            .sorted { $0.breakoutScore > $1.breakoutScore }
+            .prefix(limit)
+            .map { $0 }
+    }
 
     func canUseAI() -> Bool { isPremium || aiMessagesUsedToday < freeAIDailyLimit }
 
