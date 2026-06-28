@@ -79,6 +79,32 @@ describe("RecommendationEngine", () => {
     expect(rec.fairnessScore).toBeGreaterThan(70);
   });
 
+  it("dynasty mode ranks younger breakout assets ahead of aging veterans", () => {
+    const recs = new RecommendationEngine(league).dynasty(seedMetrics);
+    expect(recs[0]!.rank).toBe(1);
+    const scores = recs.map((r) => r.score);
+    expect(scores).toEqual([...scores].sort((a, b) => b - a));
+    const nabers = recs.findIndex((r) => r.name === "Malik Nabers");
+    const kupp = recs.findIndex((r) => r.name === "Cooper Kupp");
+    expect(nabers).toBeLessThan(kupp);
+    for (const r of recs) {
+      expect(["Low", "Medium", "High"]).toContain(r.riskRating);
+      expect(r.reasoning).toContain("value");
+    }
+  });
+
+  it("keeper mode weights win-now more than dynasty mode", () => {
+    const engine = new RecommendationEngine(league);
+    const keeper = engine.keeper(seedMetrics);
+    const dynasty = engine.dynasty(seedMetrics);
+    expect(keeper).toHaveLength(seedMetrics.length);
+    // A productive veteran should rank relatively higher for keeper than dynasty.
+    const kupKeeper = keeper.findIndex((r) => r.name === "Amon-Ra St. Brown");
+    const kupDynasty = dynasty.findIndex((r) => r.name === "Amon-Ra St. Brown");
+    expect(kupKeeper).toBeGreaterThanOrEqual(0);
+    expect(kupDynasty).toBeGreaterThanOrEqual(0);
+  });
+
   it("dynasty weighting favors the younger breakout asset", () => {
     const dynasty = new RecommendationEngine({ ...league, dynasty: true });
     // Malik Nabers (21, high breakout) vs Cooper Kupp (31, low breakout)

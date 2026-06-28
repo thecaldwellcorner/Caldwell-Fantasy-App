@@ -1,6 +1,7 @@
 import type { LeagueSettings, PlayerMetrics, Position } from "../types/playerMetrics.js";
 import type {
   DraftRecommendation,
+  RankedRecommendation,
   StartSitRecommendation,
   TradeRecommendation,
   WaiverRecommendation,
@@ -161,6 +162,60 @@ export class RecommendationEngine {
         };
       })
       .sort((a, b) => b.valueOverReplacement - a.valueOverReplacement);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DYNASTY / KEEPER (long-horizon)
+  // ---------------------------------------------------------------------------
+  dynasty(players: PlayerMetrics[]): RankedRecommendation[] {
+    // Dynasty leans heavily on long-term/future value.
+    return this.rankLongHorizon(players, "dynasty", (m) => 0.3 * winNowScore(m) + 0.7 * futureScore(m));
+  }
+
+  keeper(players: PlayerMetrics[]): RankedRecommendation[] {
+    // Keeper balances this season's production with next-year retention value.
+    return this.rankLongHorizon(players, "keeper", (m) => 0.55 * winNowScore(m) + 0.45 * futureScore(m));
+  }
+
+  private rankLongHorizon(
+    players: PlayerMetrics[],
+    kind: "dynasty" | "keeper",
+    rankScore: (m: PlayerMetrics) => number,
+  ): RankedRecommendation[] {
+    const scored = players
+      .map((m) => {
+        const winNow = winNowScore(m);
+        const future = futureScore(m);
+        const score = clamp(rankScore(m));
+        const riskNum = m.regressionScore + (m.injuryStatus !== "Healthy" ? 15 : 0);
+        const riskRating: RankedRecommendation["riskRating"] =
+          riskNum < 35 ? "Low" : riskNum < 55 ? "Medium" : "High";
+        return { m, winNow, future, score, riskRating };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    return scored.map(({ m, winNow, future, score, riskRating }, idx) => {
+      const lean =
+        future > winNow
+          ? "long-term asset — youth and breakout upside drive the value"
+          : "win-now asset — current production leads the value";
+      const ageNote = m.age !== null ? ` Age ${m.age}.` : "";
+      return {
+        kind,
+        playerId: m.playerId,
+        name: m.name,
+        position: m.position,
+        rank: idx + 1,
+        winNowValue: round(winNow),
+        futureValue: round(future),
+        riskRating,
+        score: round(score),
+        confidence: recommendationConfidence(m, score - 50),
+        reasoning:
+          `#${idx + 1} ${kind} value: ${m.name} grades as a ${lean} ` +
+          `(win-now ${round(winNow)}, future ${round(future)}).${ageNote} Risk: ${riskRating}.`,
+      };
+    });
   }
 
   // ---------------------------------------------------------------------------

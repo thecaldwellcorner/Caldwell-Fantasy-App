@@ -1,6 +1,12 @@
 import type { Position } from "./playerMetrics.js";
 
-export type RecommendationKind = "start_sit" | "trade" | "waiver" | "draft";
+export type RecommendationKind =
+  | "start_sit"
+  | "trade"
+  | "waiver"
+  | "draft"
+  | "dynasty"
+  | "keeper";
 
 /** Shared shape: every recommendation has a score, confidence and reasoning. */
 export interface BaseRecommendation {
@@ -52,4 +58,16 @@ export interface TradeRecommendation extends BaseRecommendation {
   riskRating: "Low" | "Medium" | "High";
   sideAValue: number;
   sideBValue: number;
+}
+
+/** Long-horizon recommendation used by dynasty + keeper modes. */
+export interface RankedRecommendation extends BaseRecommendation {
+  kind: "dynasty" | "keeper";
+  playerId: string;
+  name: string;
+  position: Position;
+  rank: number;
+  winNowValue: number;
+  futureValue: number;
+  riskRating: "Low" | "Medium" | "High";
 }
