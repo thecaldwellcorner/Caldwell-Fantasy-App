@@ -20,6 +20,11 @@ final class AppState: ObservableObject {
     @Published var achievements: [Achievement] = MockData.buildAchievements()
     @Published var plans: [PlanOption] = MockData.buildPlans()
 
+    // Reels feed
+    @Published var creators: [ContentCreator] = MockReels.creators
+    @Published var reels: [ReelPost] = MockReels.reels
+    @Published var savedReels: Set<UUID> = []
+
     // User
     @Published var profile: UserProfile = MockData.buildProfile()
     @Published var selectedLeagueID: UUID?
@@ -59,6 +64,19 @@ final class AppState: ObservableObject {
     func toggleWatchlist(_ id: UUID) {
         if watchlist.contains(id) { watchlist.remove(id) } else { watchlist.insert(id) }
     }
+
+    // MARK: - Reels
+    func creator(_ id: UUID) -> ContentCreator? { creators.first(where: { $0.id == id }) }
+
+    func reels(in section: ReelSection) -> [ReelPost] {
+        reels.filter { $0.section == section }
+    }
+
+    func toggleSavedReel(_ id: UUID) {
+        if savedReels.contains(id) { savedReels.remove(id) } else { savedReels.insert(id) }
+    }
+
+    var savedReelPosts: [ReelPost] { reels.filter { savedReels.contains($0.id) } }
 
     func canUseAI() -> Bool { isPremium || aiMessagesUsedToday < freeAIDailyLimit }
 
