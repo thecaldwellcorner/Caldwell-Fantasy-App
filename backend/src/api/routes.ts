@@ -107,6 +107,22 @@ export function buildRouter(repo: MetricsRepository): express.Router {
     res.json({ recommendations: new RecommendationEngine(league).draft(pool).slice(0, 30) });
   });
 
+  router.post("/recommendations/dynasty", async (req: Request, res: Response) => {
+    const { season, week } = seasonWeek(req);
+    const league = parseLeague(req.body);
+    const limit = req.body?.limit ? Number(req.body.limit) : 200;
+    const pool = await repo.query({ season, week, limit });
+    res.json({ recommendations: new RecommendationEngine(league).dynasty(pool).slice(0, 30) });
+  });
+
+  router.post("/recommendations/keeper", async (req: Request, res: Response) => {
+    const { season, week } = seasonWeek(req);
+    const league = parseLeague(req.body);
+    const limit = req.body?.limit ? Number(req.body.limit) : 200;
+    const pool = await repo.query({ season, week, limit });
+    res.json({ recommendations: new RecommendationEngine(league).keeper(pool).slice(0, 30) });
+  });
+
   router.post("/recommendations/trade", async (req: Request, res: Response) => {
     const { season, week } = seasonWeek(req);
     const league = parseLeague(req.body);

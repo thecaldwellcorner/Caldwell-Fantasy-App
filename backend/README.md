@@ -69,7 +69,18 @@ Or trigger over HTTP: `POST /api/ingest { "season": 2024, "week": 6 }`.
 | POST | `/api/recommendations/start-sit` | `{ league, playerIds[], season?, week? }` |
 | POST | `/api/recommendations/waiver` | `{ league, season?, week? }` |
 | POST | `/api/recommendations/draft` | `{ league, season?, week? }` |
+| POST | `/api/recommendations/dynasty` | `{ league, season?, week? }` — long-horizon ranking |
+| POST | `/api/recommendations/keeper` | `{ league, season?, week? }` — win-now/keep ranking |
 | POST | `/api/recommendations/trade` | `{ league, give[], get[], season?, week? }` |
+
+`PlayerMetrics` also carries an extended optional advanced-analytics block
+(`targetsPerRouteRun`, `yardsPerRouteRun`, `routeParticipation`, `airYardsShare`,
+`firstReadShare`, `redZoneTargets`, `endZoneTargets`, `rushShare`, `goalLineShare`,
+`explosivePlayRate`, `missedTacklesForced`, `yardsAfterContact`,
+`expectedFantasyPoints`, `fantasyPointsOverExpected`, `teamPassRateOverExpected`,
+`teamEPAperPlay`, `offensiveLineRank`, `impliedTeamTotal`, `spread`,
+`matchupEPAAllowed`, `scheduleDifficulty`) plus provenance (`dataLastUpdated`,
+`dataSources`, `hasCurrentData`) used by the grounding guardrails.
 
 ## Architecture
 
@@ -103,7 +114,15 @@ Takes `PlayerMetrics[]` + `LeagueSettings` and returns:
 - **start/sit** — Start/Flex/Sit verdict, weekly score, confidence, reasoning
 - **waiver** — priority order + suggested FAAB bid %, reasoning
 - **draft** — value-over-replacement (positional scarcity aware), reasoning
+- **dynasty** — long-horizon ranking (future value weighted), reasoning
+- **keeper** — win-now/keep ranking, reasoning
 - **trade** — trade grade, fairness, win-now vs. future, risk rating, reasoning
+
+> The richest, fully-explained engine (per-metric key drivers, short/long-term
+> values, missing-data guardrails, "Caldwell Take" placeholder) lives in the iOS
+> app at `CaldwellCorner/Services/CaldwellEngine.swift`, which powers the AI Coach.
+> The AI assistant only **explains** this deterministic output — it never invents
+> rankings or stats.
 
 It is deterministic and grounded in the stored metrics (no fabricated stats),
 matching the PRD's RAG / anti-hallucination requirement. League context (scoring

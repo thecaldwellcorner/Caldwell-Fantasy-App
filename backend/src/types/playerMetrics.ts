@@ -59,6 +59,34 @@ export interface PlayerMetrics {
 
   /** ISO timestamp of last update. */
   updatedAt: string;
+
+  // ---- Extended advanced analytics (optional; populated as the pipeline matures) ----
+  targetsPerRouteRun?: number;
+  yardsPerRouteRun?: number;
+  routeParticipation?: number;   // 0..1
+  airYardsShare?: number;        // 0..1
+  firstReadShare?: number;       // 0..1
+  redZoneTargets?: number;
+  endZoneTargets?: number;
+  rushShare?: number;            // 0..1
+  goalLineShare?: number;        // 0..1
+  explosivePlayRate?: number;    // 0..1
+  missedTacklesForced?: number;
+  yardsAfterContact?: number;
+  expectedFantasyPoints?: number;
+  fantasyPointsOverExpected?: number;
+  teamPassRateOverExpected?: number; // PROE
+  teamEPAperPlay?: number;
+  offensiveLineRank?: number;    // 1..32
+  impliedTeamTotal?: number;
+  spread?: number;
+  matchupEPAAllowed?: number;
+  scheduleDifficulty?: number;   // 0..100
+
+  /** Provenance / guardrail metadata. */
+  dataLastUpdated?: string;
+  dataSources?: string[];
+  hasCurrentData?: boolean;
 }
 
 export type ScoringFormat = "ppr" | "half_ppr" | "standard";
