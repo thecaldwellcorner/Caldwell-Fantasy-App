@@ -1,83 +1,204 @@
 import Foundation
 
-/// Rule-based stand-in for the OpenAI-powered AI Fantasy Assistant (PRD §2).
-/// Grounds every response in the local player database (RAG-style) so it never
-/// invents stats — matching the "AI Hallucinations" mitigation in the plan.
+/// The AI Fantasy Coach. It does NOT invent rankings, stats or analysis.
+/// It detects intent, asks `CaldwellEngine` for a deterministic `Recommendation`
+/// grounded in stored `PlayerMetrics`, then narrates that output like an expert
+/// fantasy GM. Guardrails: missing data → "Current data unavailable"; low
+/// confidence → flagged as a close call; never fabricates advanced metrics.
 enum AIAssistant {
 
-    static func respond(to query: String, players: [Player], league: League?) -> String {
+    static func answer(to query: String,
+                       metrics: [PlayerMetrics],
+                       waiverPool: [PlayerMetrics],
+                       context: CaldwellEngine.Context) -> AssistantAnswer {
         let q = query.lowercased()
+        let mentioned = mentionedPlayers(in: query, metrics: metrics)
 
-        // Trade question: "trade X for Y" / "should I trade ..."
-        if q.contains("trade") || (q.contains(" for ") && mentionedPlayers(in: query, players: players).count >= 2) {
-            let mentioned = mentionedPlayers(in: query, players: players)
-            if mentioned.count >= 2 {
-                let a = mentioned[0]
-                let b = mentioned[1]
-                let eval = TradeEngine.evaluate(sideA: [a], sideB: [b], league: league)
-                let dir = eval.tradeGrade >= 55 ? "I'd lean toward accepting." :
-                          eval.tradeGrade <= 45 ? "I'd lean toward declining." : "It's roughly a coin flip."
-                return "Trade grade: \(Int(eval.tradeGrade))/100 · Fairness \(Int(eval.fairnessScore))/100.\n\n\(eval.explanation)\n\n\(dir)"
-            }
-            return "Tell me both players (e.g. \"Should I trade Garrett Wilson for Drake London?\") and I'll grade it using your league's settings."
+        // Guardrail: if the user named a player we track but have no current data for.
+        if let stale = mentioned.first(where: { !$0.hasCurrentData }) {
+            return .unavailable(for: stale.name,
+                                warnings: ["No current data for \(stale.name) — data pipeline has not refreshed."])
         }
 
-        // Start/sit
-        if q.contains("start") || q.contains("sit") || q.contains("play") {
-            let pos = detectPosition(in: q)
-            let candidates = players
-                .filter { pos == nil || $0.position == pos }
-                .sorted { $0.projWeekly > $1.projWeekly }
-                .prefix(3)
-            if let top = candidates.first {
-                let list = candidates.map { "• \($0.name) (\($0.position.rawValue)) — proj \(String(format: "%.1f", $0.projWeekly)) pts" }.joined(separator: "\n")
-                return "Based on this week's projections\(pos != nil ? " at \(pos!.rawValue)" : ""), start \(top.name). My top options:\n\n\(list)\n\nThese are grounded in matchup, usage and Vegas inputs."
-            }
+        // Intent routing
+        if isTrade(q, mentioned: mentioned) {
+            return tradeAnswer(query: query, q: q, metrics: metrics, context: context)
+        }
+        if q.contains("waiver") || q.contains("claim") || q.contains("pick up") || q.contains("faab") || q.contains("add ") {
+            let rec = CaldwellEngine.waiver(waiverPool, context: context)
+            return build(rec)
+        }
+        if q.contains("keeper") || q.contains(" keep") {
+            return rankedAnswer(.keeper, query: query, mentioned: mentioned, metrics: metrics, context: context)
+        }
+        if q.contains("dynasty") || q.contains("rebuild") || q.contains("long term") || q.contains("long-term") {
+            return rankedAnswer(.dynasty, query: query, mentioned: mentioned, metrics: metrics, context: context)
+        }
+        if q.contains("draft") && !q.contains("trade") {
+            let pool = metrics.filter { $0.hasCurrentData }
+            return build(CaldwellEngine.draft(pool, context: context))
+        }
+        if q.contains("start") || q.contains("sit") || q.contains("flex") || q.contains(" play ") || mentioned.count >= 1 {
+            return rankedAnswer(.startSit, query: query, mentioned: mentioned, metrics: metrics, context: context)
         }
 
-        // Waivers
-        if q.contains("waiver") || q.contains("claim") || q.contains("pick up") || q.contains("add") {
-            let targets = MockData.buildWaivers().prefix(3)
-            let list = targets.map { "• \($0.playerName) (\($0.position.rawValue)) — bid ~\($0.faabBidPct)% FAAB. \($0.reason)" }.joined(separator: "\n")
-            return "Top waiver targets this week:\n\n\(list)"
-        }
-
-        // Rebuild / dynasty strategy
-        if q.contains("rebuild") || q.contains("contend") || q.contains("dynasty") {
-            return "For a rebuild, prioritize youth and draft capital: sell aging veterans (27+) for picks and ascending players under 24. Your young core and future firsts are the foundation — target proven players entering year two or three who are being undervalued. If you're closer to contention, flip those picks for established producers to win now."
-        }
-
-        // Player lookup
-        if let p = mentionedPlayers(in: query, players: players).first {
-            return "\(p.name) (\(p.position.rawValue), \(p.team)) — Overall #\(p.overallRank), \(p.position.rawValue)\(p.positionRank). " +
-                "Redraft value \(Int(p.redraftValue))/100, dynasty \(Int(p.dynastyValue))/100. " +
-                "Weekly projection \(String(format: "%.1f", p.projWeekly)) pts (floor \(Int(p.floor)), ceiling \(Int(p.ceiling))). " +
-                "\(p.blurb)"
-        }
-
-        // Fallback
-        return "I'm your AI fantasy assistant, grounded in the Caldwell Corner player database. Ask me to grade a trade, set your start/sit, find waiver adds, or evaluate any player. For example: \"Grade Bijan Robinson for Ja'Marr Chase\"."
+        return helpAnswer()
     }
 
-    static func mentionedPlayers(in text: String, players: [Player]) -> [Player] {
-        let lower = text.lowercased()
-        var found: [(Int, Player)] = []
-        for p in players {
-            if let range = lower.range(of: p.name.lowercased()) {
-                found.append((lower.distance(from: lower.startIndex, to: range.lowerBound), p))
+    // MARK: - Routers
+    private static func rankedAnswer(_ kind: RecommendationKind, query: String,
+                                     mentioned: [PlayerMetrics], metrics: [PlayerMetrics],
+                                     context: CaldwellEngine.Context) -> AssistantAnswer {
+        var pool = mentioned.filter { $0.hasCurrentData }
+        if pool.isEmpty {
+            if let pos = detectPosition(query.lowercased()) {
+                pool = metrics.filter { $0.position == pos && $0.hasCurrentData }
             } else {
-                // last name match
-                if let last = p.name.split(separator: " ").last,
-                   lower.contains(last.lowercased()), last.count > 3,
-                   let range = lower.range(of: last.lowercased()) {
-                    found.append((lower.distance(from: lower.startIndex, to: range.lowerBound), p))
-                }
+                return helpAnswer()
             }
         }
-        return found.sorted { $0.0 < $1.0 }.map { $0.1 }
+        let rec: Recommendation
+        switch kind {
+        case .dynasty: rec = CaldwellEngine.dynasty(pool, context: context)
+        case .keeper: rec = CaldwellEngine.keeper(pool, context: context)
+        default: rec = CaldwellEngine.startSit(pool, context: context)
+        }
+        return build(rec)
     }
 
-    private static func detectPosition(in q: String) -> Position? {
+    private static func tradeAnswer(query: String, q: String, metrics: [PlayerMetrics],
+                                    context: CaldwellEngine.Context) -> AssistantAnswer {
+        var give: [PlayerMetrics] = []
+        var get: [PlayerMetrics] = []
+        if let range = q.range(of: " for ") {
+            let lower = q
+            let leftText = String(lower[..<range.lowerBound])
+            let rightText = String(lower[range.upperBound...])
+            give = mentionedPlayers(in: leftText, metrics: metrics)
+            get = mentionedPlayers(in: rightText, metrics: metrics)
+        } else {
+            let all = mentionedPlayers(in: query, metrics: metrics)
+            if all.count >= 2 { give = [all[0]]; get = Array(all[1...]) }
+            else { get = all }
+        }
+
+        let named = give + get
+        if let stale = named.first(where: { !$0.hasCurrentData }) {
+            return .unavailable(for: stale.name, warnings: ["No current data for \(stale.name)."])
+        }
+        if give.isEmpty && get.isEmpty {
+            return AssistantAnswer(
+                finalCall: "Name both sides of the trade",
+                verdictTag: nil, dataAvailable: true, confidence: 0, dataLastUpdated: nil,
+                modelScore: nil, keyMetrics: [], riskFactors: [],
+                aiExplanation: "Tell me who you'd give and who you'd get — e.g. \"Should I trade Travis Etienne for Ja'Marr Chase?\" — and I'll grade it on the model.",
+                caldwellTake: AssistantAnswer.caldwellTakePlaceholder,
+                missingDataWarnings: [], kind: .trade)
+        }
+        return build(CaldwellEngine.trade(give: give, get: get, context: context))
+    }
+
+    // MARK: - Build a structured answer from a Recommendation
+    private static func build(_ rec: Recommendation) -> AssistantAnswer {
+        let (finalCall, tag) = headline(for: rec)
+        let noData = rec.missingDataWarnings.filter { $0.localizedCaseInsensitiveContains("no current data") }
+        let riskWarns = rec.missingDataWarnings.filter { !$0.localizedCaseInsensitiveContains("no current data") }
+
+        var riskFactors = ["Overall model risk: \(rec.riskLevel.rawValue)."]
+        riskFactors.append(contentsOf: riskWarns)
+        if rec.isCloseCall {
+            riskFactors.append("Close call — model confidence is \(Int(rec.confidence.rounded()))%, so weigh your roster needs.")
+        }
+
+        return AssistantAnswer(
+            finalCall: finalCall,
+            verdictTag: tag,
+            dataAvailable: rec.hasData,
+            confidence: rec.confidence,
+            dataLastUpdated: rec.dataLastUpdated,
+            modelScore: rec.modelScore,
+            keyMetrics: rec.keyMetricsUsed,
+            riskFactors: riskFactors,
+            aiExplanation: narrate(rec),
+            caldwellTake: AssistantAnswer.caldwellTakePlaceholder,
+            missingDataWarnings: noData,
+            kind: rec.kind)
+    }
+
+    private static func headline(for rec: Recommendation) -> (String, String) {
+        let p = rec.recommendedPlayer
+        switch rec.kind {
+        case .startSit:
+            if let c = rec.comparedPlayer { return ("Start \(p) over \(c)", "START") }
+            return ("Start \(p)", "START")
+        case .trade:
+            let verdict = rec.modelScore >= 58 ? "Accept" : rec.modelScore <= 43 ? "Decline" : "Fair value"
+            return ("\(verdict): land \(p)", verdict.uppercased())
+        case .waiver:
+            return ("Add \(p)", "ADD")
+        case .draft:
+            return ("Draft \(p)", "DRAFT")
+        case .dynasty:
+            if let c = rec.comparedPlayer { return ("Prefer \(p) over \(c)", "BUY") }
+            return ("Buy \(p)", "BUY")
+        case .keeper:
+            return ("Keep \(p)", "KEEP")
+        }
+    }
+
+    private static func narrate(_ rec: Recommendation) -> String {
+        let opener: String
+        switch rec.kind {
+        case .startSit: opener = "Here's the lineup call, GM."
+        case .trade: opener = "Let's break down the trade."
+        case .waiver: opener = "Here's your top waiver move this week."
+        case .draft: opener = "You're on the clock — here's the value pick."
+        case .dynasty: opener = "Thinking long term, here's the read."
+        case .keeper: opener = "On the keeper decision —"
+        }
+        let body = rec.reasoningBullets.joined(separator: " ")
+        return "\(opener) \(body)"
+    }
+
+    private static func helpAnswer() -> AssistantAnswer {
+        AssistantAnswer(
+            finalCall: "Ask me for a grounded call",
+            verdictTag: nil, dataAvailable: true, confidence: 0, dataLastUpdated: nil,
+            modelScore: nil, keyMetrics: [], riskFactors: [],
+            aiExplanation:
+                "I'm your fantasy GM coach. I only act on the Caldwell model and verified advanced metrics — I won't guess or make up stats. " +
+                "Ask me to set a start/sit, grade a trade, find a waiver add, or evaluate a player, and I'll show the model score, the advanced metrics behind it, and the risks.",
+            caldwellTake: AssistantAnswer.caldwellTakePlaceholder,
+            missingDataWarnings: [], kind: nil)
+    }
+
+    // MARK: - Parsing helpers
+    private static func isTrade(_ q: String, mentioned: [PlayerMetrics]) -> Bool {
+        if q.contains("trade") { return true }
+        if q.contains(" for ") && mentioned.count >= 2 { return true }
+        return false
+    }
+
+    static func mentionedPlayers(in text: String, metrics: [PlayerMetrics]) -> [PlayerMetrics] {
+        let lower = text.lowercased()
+        var found: [(Int, PlayerMetrics)] = []
+        for m in metrics {
+            let name = m.name.lowercased()
+            if let r = lower.range(of: name) {
+                found.append((lower.distance(from: lower.startIndex, to: r.lowerBound), m))
+            } else if let last = m.name.split(separator: " ").last, last.count > 3,
+                      let r = lower.range(of: last.lowercased()) {
+                found.append((lower.distance(from: lower.startIndex, to: r.lowerBound), m))
+            }
+        }
+        // De-dupe by player id, keep earliest mention order.
+        var seen = Set<String>()
+        return found.sorted { $0.0 < $1.0 }.compactMap { (_, m) in
+            seen.insert(m.playerId).inserted ? m : nil
+        }
+    }
+
+    private static func detectPosition(_ q: String) -> Position? {
         if q.contains("qb") || q.contains("quarterback") { return .qb }
         if q.contains("rb") || q.contains("running back") { return .rb }
         if q.contains("wr") || q.contains("receiver") || q.contains("wideout") { return .wr }
