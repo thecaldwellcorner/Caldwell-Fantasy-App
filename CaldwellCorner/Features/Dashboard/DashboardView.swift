@@ -27,6 +27,12 @@ struct DashboardView: View {
         .navigationTitle("Caldwell Corner")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink { ProfileView(showPaywall: $showPaywall) } label: {
+                    Image(systemName: "person.crop.circle.fill")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { NotificationsView() } label: {
                     Image(systemName: "bell.badge.fill")
