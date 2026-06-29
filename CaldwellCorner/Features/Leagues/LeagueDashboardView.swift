@@ -20,11 +20,8 @@ struct LeagueDashboardView: View {
                 .padding(.top, Theme.Spacing.sm)
             }
 
-            Picker("", selection: $tab) {
-                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(Theme.Spacing.lg)
+            DSSegmented(items: Tab.allCases, title: { $0.rawValue }, selection: $tab)
+                .padding(Theme.Spacing.lg)
 
             ScrollView {
                 VStack(spacing: Theme.Spacing.md) {

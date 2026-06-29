@@ -7,11 +7,8 @@ struct PlayersView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $mode) {
-                ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(Theme.Spacing.lg)
+            DSSegmented(items: Mode.allCases, title: { $0.rawValue }, selection: $mode)
+                .padding(Theme.Spacing.lg)
 
             switch mode {
             case .database: PlayerDatabaseView()
@@ -51,20 +48,11 @@ struct PlayerDatabaseView: View {
 
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(Theme.Colors.textTertiary)
-                TextField("Search players or teams", text: $search)
-                    .foregroundStyle(Theme.Colors.textPrimary)
-                    .autocorrectionDisabled()
-            }
-            .padding(Theme.Spacing.md)
-            .background(Theme.Colors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
-            .padding(.horizontal, Theme.Spacing.lg)
+            searchField.dsScreenPadding()
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.Spacing.sm) {
-                    FilterChip(title: "ALL", selected: positionFilter == nil) { positionFilter = nil }
+                    FilterChip(title: "All", selected: positionFilter == nil) { positionFilter = nil }
                     ForEach(Position.allCases) { pos in
                         FilterChip(title: pos.rawValue, selected: positionFilter == pos,
                                    color: Theme.Colors.position(pos.rawValue)) {
@@ -72,13 +60,11 @@ struct PlayerDatabaseView: View {
                         }
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.lg)
+                .dsScreenPadding()
             }
 
             HStack {
-                Text("\(filtered.count) players")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.Colors.textTertiary)
+                Text("\(filtered.count) players").dsCaption()
                 Spacer()
                 Menu {
                     ForEach(SortOption.allCases, id: \.self) { opt in
@@ -90,7 +76,7 @@ struct PlayerDatabaseView: View {
                         .foregroundStyle(Theme.Colors.accent)
                 }
             }
-            .padding(.horizontal, Theme.Spacing.lg)
+            .dsScreenPadding()
 
             ScrollView {
                 LazyVStack(spacing: Theme.Spacing.sm) {
@@ -104,7 +90,7 @@ struct PlayerDatabaseView: View {
                         ForEach(0..<8, id: \.self) { _ in SkeletonCard(lines: 2) }
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.lg)
+                .dsScreenPadding()
                 .padding(.bottom, Theme.Spacing.xl)
             }
         }
@@ -115,27 +101,31 @@ struct PlayerDatabaseView: View {
             }
         }
     }
-}
 
-struct FilterChip: View {
-    let title: String
-    let selected: Bool
-    var color: Color = Theme.Colors.accent
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(selected ? .black : Theme.Colors.textSecondary)
-                .padding(.horizontal, Theme.Spacing.md)
-                .padding(.vertical, Theme.Spacing.sm)
-                .background(selected ? color : Theme.Colors.surface)
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(Theme.Colors.stroke, lineWidth: selected ? 0 : 1))
+    private var searchField: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Theme.Colors.textTertiary)
+            TextField("Search players or teams", text: $search)
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .autocorrectionDisabled()
+            if !search.isEmpty {
+                Button { search = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.Colors.textTertiary)
+                }
+                .buttonStyle(.plain)
+            }
         }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, 11)
+        .background(Theme.Colors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+            .strokeBorder(Theme.Colors.strokeSoft, lineWidth: 1))
     }
 }
 
+// MARK: - Standard player list row
 struct PlayerRow: View {
     let player: Player
     var sort: PlayerDatabaseView.SortOption = .overall
@@ -149,40 +139,32 @@ struct PlayerRow: View {
         }
     }
 
+    private var trailingColor: Color {
+        sort == .trend ? (player.rankTrend >= 0 ? Theme.Colors.positive : Theme.Colors.negative) : Theme.Colors.textPrimary
+    }
+
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
             Text("\(player.positionRank)")
-                .font(.system(size: 13, weight: .heavy, design: .rounded))
-                .foregroundStyle(Theme.Colors.position(player.position.rawValue))
+                .dsNumeric(13, color: Theme.Colors.position(player.position.rawValue))
                 .frame(width: 22)
             PlayerAvatar(name: player.name, position: player.position.rawValue, size: 40)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(player.name)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                        .lineLimit(1)
+                    Text(player.name).dsCardTitle().lineLimit(1)
                     if player.injuryStatus.isConcern {
-                        Image(systemName: "cross.case.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Theme.Colors.warning)
+                        Image(systemName: "cross.case.fill").font(.system(size: 10)).foregroundStyle(Theme.Colors.warning)
                     }
                 }
                 HStack(spacing: 6) {
                     PositionBadge(position: player.position.rawValue, compact: true)
-                    Text("\(player.team) · Bye \(player.byeWeek)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text("\(player.team) · Bye \(player.byeWeek)").dsCaption()
                 }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text(trailingValue)
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundStyle(sort == .trend ? (player.rankTrend >= 0 ? Theme.Colors.positive : Theme.Colors.negative) : Theme.Colors.textPrimary)
-                Text(sort.rawValue.uppercased())
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(Theme.Colors.textTertiary)
+                Text(trailingValue).dsNumeric(16, color: trailingColor)
+                DSEyebrow(text: sort.rawValue)
             }
         }
         .card(padding: Theme.Spacing.md)

@@ -14,8 +14,8 @@ struct AIAssistantView: View {
     private let prompts: [SuggestedPrompt] = [
         .init(text: "Should I start Puka Nacua or Garrett Wilson?", systemImage: "checklist"),
         .init(text: "Grade Travis Etienne for Ja'Marr Chase", systemImage: "arrow.left.arrow.right"),
-        .init(text: "Who's the top waiver add this week?", systemImage: "hand.raised.fill"),
-        .init(text: "Best dynasty buy right now?", systemImage: "building.columns.fill"),
+        .init(text: "Who's the top waiver add this week?", systemImage: "hand.raised"),
+        .init(text: "Best dynasty buy right now?", systemImage: "building.columns"),
     ]
 
     var body: some View {
@@ -23,9 +23,7 @@ struct AIAssistantView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: Theme.Spacing.md) {
-                        ForEach(messages) { msg in
-                            messageView(msg).id(msg.id)
-                        }
+                        ForEach(messages) { msg in messageView(msg).id(msg.id) }
                         if isThinking { TypingBubble().id("typing") }
                         if messages.count <= 1 { promptSuggestions }
                     }
@@ -35,7 +33,6 @@ struct AIAssistantView: View {
                     withAnimation { proxy.scrollTo(messages.last?.id, anchor: .bottom) }
                 }
             }
-
             if !state.isPremium { usageBar }
             inputBar
         }
@@ -46,26 +43,17 @@ struct AIAssistantView: View {
 
     @ViewBuilder
     private func messageView(_ msg: ChatMessage) -> some View {
-        if let answer = msg.answer {
-            AnswerCardView(answer: answer)
-        } else {
-            ChatBubble(message: msg)
-        }
+        if let answer = msg.answer { AnswerCardView(answer: answer) } else { ChatBubble(message: msg) }
     }
 
     private var promptSuggestions: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text("Try asking")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.Colors.textTertiary)
+            DSEyebrow(text: "Try asking")
             ForEach(prompts) { p in
                 Button { send(p.text) } label: {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        Image(systemName: p.systemImage).foregroundStyle(Theme.Colors.accent)
-                        Text(p.text)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                            .multilineTextAlignment(.leading)
+                    HStack(spacing: Theme.Spacing.md) {
+                        Image(systemName: p.systemImage).font(.system(size: 15)).foregroundStyle(Theme.Colors.accent).frame(width: 22)
+                        Text(p.text).dsBody().foregroundStyle(Theme.Colors.textPrimary).multilineTextAlignment(.leading)
                         Spacer()
                     }
                     .card(padding: Theme.Spacing.md)
@@ -76,13 +64,11 @@ struct AIAssistantView: View {
 
     private var usageBar: some View {
         HStack {
-            Image(systemName: "bolt.fill").foregroundStyle(Theme.Colors.accentSecondary)
-            Text("\(max(0, state.freeAIDailyLimit - state.aiMessagesUsedToday)) free questions left today")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.Colors.textSecondary)
+            Image(systemName: "bolt.fill").font(.system(size: 12)).foregroundStyle(Theme.Colors.accentSecondary)
+            Text("\(max(0, state.freeAIDailyLimit - state.aiMessagesUsedToday)) free questions left today").dsCaption()
             Spacer()
             Button("Go Unlimited") { showPaywall = true }
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.Colors.accent)
         }
         .padding(.horizontal, Theme.Spacing.lg)
@@ -95,14 +81,17 @@ struct AIAssistantView: View {
             TextField("Ask your coach…", text: $input, axis: .vertical)
                 .focused($focused)
                 .lineLimit(1...4)
+                .font(.system(size: 15))
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .padding(.horizontal, Theme.Spacing.md)
-                .padding(.vertical, 10)
-                .background(Theme.Colors.surface)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous))
+                .padding(.vertical, 11)
+                .background(Theme.Colors.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                    .strokeBorder(Theme.Colors.strokeSoft, lineWidth: 1))
             Button { send(input) } label: {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
+                    .font(.system(size: 30))
                     .foregroundStyle(input.trimmingCharacters(in: .whitespaces).isEmpty ? Theme.Colors.textTertiary : Theme.Colors.accent)
             }
             .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -149,99 +138,60 @@ struct AnswerCardView: View {
             dataUpdatedRow
 
             if !answer.keyMetrics.isEmpty {
-                section("Key Advanced Metrics") {
-                    VStack(spacing: 6) {
-                        ForEach(answer.keyMetrics) { metricRow($0) }
-                    }
+                section("Key Metrics") {
+                    VStack(spacing: 0) { ForEach(answer.keyMetrics) { metricRow($0) } }
                 }
             }
             if !answer.riskFactors.isEmpty {
                 section("Risk Factors") {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(answer.riskFactors, id: \.self) { bulletLine($0, color: Theme.Colors.warning) }
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(answer.riskFactors, id: \.self) { bulletLine($0) }
                     }
                 }
             }
             section("AI Explanation") {
-                Text(answer.aiExplanation)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(answer.aiExplanation).dsBody().fixedSize(horizontal: false, vertical: true)
             }
             caldwellTake
         }
         .card()
     }
 
-    // Header: sparkles + verdict tag + final call
     private var header: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.black)
-                    .frame(width: 26, height: 26)
-                    .background(Theme.Colors.accent)
-                    .clipShape(Circle())
-                Text(answer.kind?.rawValue ?? "AI Coach")
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .font(.system(size: 12, weight: .bold)).foregroundStyle(.black)
+                    .frame(width: 24, height: 24).background(Theme.Colors.accent).clipShape(Circle())
+                DSEyebrow(text: answer.kind?.rawValue ?? "AI Coach")
                 Spacer()
-                if let tag = answer.verdictTag { verdictPill(tag) }
+                if let tag = answer.verdictTag { Tag(text: tag, color: verdictColor(tag), filled: true) }
             }
-            Text(answer.finalCall)
-                .font(.system(size: 19, weight: .heavy, design: .rounded))
-                .foregroundStyle(Theme.Colors.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("FINAL CALL")
-                .font(.system(size: 9, weight: .heavy))
-                .foregroundStyle(Theme.Colors.accent)
+            Text(answer.finalCall).dsSectionTitle().fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func verdictPill(_ tag: String) -> some View {
-        let color: Color
+    private func verdictColor(_ tag: String) -> Color {
         switch tag {
-        case "START", "ADD", "DRAFT", "BUY", "KEEP", "ACCEPT": color = Theme.Colors.positive
-        case "DECLINE": color = Theme.Colors.negative
-        case "NO DATA": color = Theme.Colors.textTertiary
-        default: color = Theme.Colors.accentSecondary
+        case "START", "ADD", "DRAFT", "BUY", "KEEP", "ACCEPT": return Theme.Colors.accent
+        case "DECLINE": return Theme.Colors.negative
+        case "NO DATA": return Theme.Colors.textTertiary
+        default: return Theme.Colors.accentSecondary
         }
-        return Text(tag)
-            .font(.system(size: 11, weight: .heavy))
-            .foregroundStyle(.black)
-            .padding(.horizontal, 9).padding(.vertical, 4)
-            .background(color)
-            .clipShape(Capsule())
     }
 
     private var scoreRow: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            if let score = answer.modelScore {
-                GradeRing(score: score, size: 66, label: "MODEL")
-            }
+            if let score = answer.modelScore { GradeRing(score: score, size: 64, label: "MODEL") }
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("Confidence")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text("Confidence").dsCallout()
                     Spacer()
-                    Text("\(Int(answer.confidence.rounded()))%")
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Theme.Colors.grade(answer.confidence))
+                    Text("\(Int(answer.confidence.rounded()))%").dsNumeric(14, color: Theme.Colors.grade(answer.confidence))
                 }
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.Colors.surfaceElevated).frame(height: 8)
-                        Capsule().fill(Theme.Colors.grade(answer.confidence))
-                            .frame(width: geo.size.width * CGFloat(answer.confidence / 100), height: 8)
-                    }
-                }
-                .frame(height: 8)
+                ProgressBar(fraction: answer.confidence / 100, tint: Theme.Colors.grade(answer.confidence))
                 if answer.confidence < 60 {
-                    Text("Close call — lean on roster needs")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.Colors.warning)
+                    Text("Close call — lean on roster needs").dsCaption().foregroundStyle(Theme.Colors.warning)
                 }
             }
         }
@@ -249,26 +199,19 @@ struct AnswerCardView: View {
 
     private var unavailableBanner: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Theme.Colors.warning)
-            Text("Current data unavailable — no guess provided.")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.Colors.textPrimary)
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.Colors.warning)
+            Text("Current data unavailable — no guess provided.").dsCallout().foregroundStyle(Theme.Colors.textPrimary)
             Spacer()
         }
         .padding(Theme.Spacing.md)
         .background(Theme.Colors.warning.opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous)
-            .stroke(Theme.Colors.warning.opacity(0.4), lineWidth: 1))
     }
 
     private var warningsBanner: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(answer.missingDataWarnings, id: \.self) { w in
-                Label(w, systemImage: "exclamationmark.circle.fill")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.Colors.warning)
+                Label(w, systemImage: "exclamationmark.circle.fill").dsCaption().foregroundStyle(Theme.Colors.warning)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -279,12 +222,8 @@ struct AnswerCardView: View {
 
     private var dataUpdatedRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.Colors.textTertiary)
-            Text("Data last updated: \(dataUpdatedString)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Theme.Colors.textTertiary)
+            Image(systemName: "clock.arrow.circlepath").font(.system(size: 11)).foregroundStyle(Theme.Colors.textTertiary)
+            Text("Data last updated: \(dataUpdatedString)").dsCaption()
             Spacer()
         }
     }
@@ -292,8 +231,7 @@ struct AnswerCardView: View {
     private var dataUpdatedString: String {
         if !answer.dataAvailable { return "Current data unavailable" }
         guard let d = answer.dataLastUpdated else { return "—" }
-        let f = DateFormatter()
-        f.dateFormat = "MMM d, h:mm a"
+        let f = DateFormatter(); f.dateFormat = "MMM d, h:mm a"
         return f.string(from: d)
     }
 
@@ -305,76 +243,49 @@ struct AnswerCardView: View {
         case .negative: color = Theme.Colors.negative
         }
         return HStack(spacing: Theme.Spacing.sm) {
-            Text(m.label)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.Colors.textSecondary)
+            Text(m.label).dsCallout()
             Spacer()
-            Text(m.value)
-                .font(.system(size: 14, weight: .heavy, design: .rounded))
-                .foregroundStyle(Theme.Colors.textPrimary)
-            Text(m.note)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.black)
-                .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(color)
-                .clipShape(Capsule())
-                .frame(width: 72, alignment: .trailing)
+            Text(m.value).dsNumeric(14)
+            Tag(text: m.note, color: color, filled: m.sentiment != .neutral)
+                .frame(width: 78, alignment: .trailing)
         }
-        .padding(.vertical, 4)
-        .overlay(Divider().overlay(Theme.Colors.stroke), alignment: .bottom)
+        .padding(.vertical, 9)
+        .overlay(Divider().overlay(Theme.Colors.strokeSoft), alignment: .bottom)
     }
 
-    private func bulletLine(_ text: String, color: Color) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            Circle().fill(color).frame(width: 5, height: 5).padding(.top, 6)
-            Text(text)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+    private func bulletLine(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle().fill(Theme.Colors.warning).frame(width: 5, height: 5).padding(.top, 6)
+            Text(text).dsCallout().fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
     }
 
     private var caldwellTake: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "quote.opening").foregroundStyle(Theme.Colors.accentSecondary)
-                Text("CALDWELL TAKE")
-                    .font(.system(size: 10, weight: .heavy))
-                    .foregroundStyle(Theme.Colors.accentSecondary)
+            HStack {
+                DSEyebrow(text: "Caldwell Take", color: Theme.Colors.accentSecondary)
                 Spacer()
-                Text("Coming soon")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Theme.Colors.accentSecondary)
-                    .clipShape(Capsule())
+                Tag(text: "Soon", color: Theme.Colors.accentSecondary)
             }
-            Text(answer.caldwellTake)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(answer.caldwellTake).dsCallout().fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.md)
-        .background(Theme.Colors.accentSecondary.opacity(0.08))
+        .background(Theme.Colors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous)
-            .stroke(Theme.Colors.accentSecondary.opacity(0.3), lineWidth: 1))
     }
 
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text(title.uppercased())
-                .font(.system(size: 11, weight: .heavy))
-                .foregroundStyle(Theme.Colors.textTertiary)
+            DSEyebrow(text: title)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-// MARK: - Plain chat bubble (intro / guidance text)
+// MARK: - Chat bubble (intro / guidance)
 struct ChatBubble: View {
     let message: ChatMessage
     var isUser: Bool { message.role == .user }
@@ -383,11 +294,8 @@ struct ChatBubble: View {
             if isUser { Spacer(minLength: 40) }
             if !isUser {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.black)
-                    .frame(width: 28, height: 28)
-                    .background(Theme.Colors.accent)
-                    .clipShape(Circle())
+                    .font(.system(size: 13, weight: .bold)).foregroundStyle(.black)
+                    .frame(width: 26, height: 26).background(Theme.Colors.accent).clipShape(Circle())
             }
             Text(message.text)
                 .font(.system(size: 15))
@@ -396,7 +304,7 @@ struct ChatBubble: View {
                 .background(isUser ? Theme.Colors.accent : Theme.Colors.surface)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
-                    .stroke(Theme.Colors.stroke, lineWidth: isUser ? 0 : 1))
+                    .strokeBorder(Theme.Colors.stroke, lineWidth: isUser ? 0 : 1))
             if !isUser { Spacer(minLength: 40) }
         }
     }
@@ -408,9 +316,7 @@ struct TypingBubble: View {
         HStack {
             HStack(spacing: 5) {
                 ForEach(0..<3) { i in
-                    Circle()
-                        .fill(Theme.Colors.textSecondary)
-                        .frame(width: 7, height: 7)
+                    Circle().fill(Theme.Colors.textSecondary).frame(width: 7, height: 7)
                         .opacity(phase == Double(i) ? 1 : 0.3)
                 }
             }
@@ -419,8 +325,6 @@ struct TypingBubble: View {
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
             Spacer()
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.5).repeatForever()) { phase = 2 }
-        }
+        .onAppear { withAnimation(.easeInOut(duration: 0.5).repeatForever()) { phase = 2 } }
     }
 }
