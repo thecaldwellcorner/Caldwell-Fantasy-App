@@ -1,344 +1,274 @@
 import SwiftUI
+import Combine
 
-struct ReelsView: View {
-    @EnvironmentObject var state: AppState
-    @State private var topicFilter: ReelTopic?
-    @State private var loaded = false
-
-    private func reels(_ section: ReelSection) -> [ReelPost] {
-        let base = state.reels(in: section)
-        guard let topicFilter else { return base }
-        return base.filter { $0.topic == topicFilter }
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                intro
-                if loaded {
-                    topicFilters
-                    ForEach(ReelSection.allCases) { section in
-                        let items = reels(section)
-                        if !items.isEmpty {
-                            if section == .trendingClips {
-                                trendingGrid(section: section, items: items)
-                            } else {
-                                shelf(section: section, items: items)
-                            }
-                        }
-                    }
-                } else {
-                    reelsSkeleton
-                }
-            }
-            .padding(.vertical, Theme.Spacing.lg)
-        }
-        .onAppear {
-            guard !loaded else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                withAnimation(Theme.Anim.quick) { loaded = true }
-            }
-        }
-        .screenBackground()
-        .navigationTitle("Reels")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SavedReelsView() } label: {
-                    Image(systemName: "bookmark.fill").foregroundStyle(Theme.Colors.accent)
-                }
-            }
-        }
-    }
-
-    private var intro: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Fantasy Reels")
-                .font(.system(size: 24, weight: .heavy, design: .rounded))
-                .foregroundStyle(Theme.Colors.textPrimary)
-            Text("Short-form fantasy football from The Caldwell Corner and trusted creators")
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.Colors.textSecondary)
-        }
-        .padding(.horizontal, Theme.Spacing.lg)
-    }
-
-    private var topicFilters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Theme.Spacing.sm) {
-                FilterChip(title: "ALL", selected: topicFilter == nil) { topicFilter = nil }
-                ForEach(ReelTopic.allCases) { topic in
-                    FilterChip(title: topic.rawValue, selected: topicFilter == topic,
-                               color: ReelStyle.color(topic)) {
-                        topicFilter = topicFilter == topic ? nil : topic
-                    }
-                }
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-        }
-    }
-
-    private var reelsSkeleton: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            ForEach(0..<2, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                    SkeletonView().frame(width: 170, height: 18)
-                        .padding(.horizontal, Theme.Spacing.lg)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: Theme.Spacing.md) {
-                            ForEach(0..<3, id: \.self) { _ in
-                                SkeletonView(cornerRadius: Theme.Radius.card)
-                                    .frame(width: 230, height: 360)
-                            }
-                        }
-                        .padding(.horizontal, Theme.Spacing.lg)
-                    }
-                }
-            }
-        }
-    }
-
-    private func shelf(section: ReelSection, items: [ReelPost]) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SectionHeader(title: section.rawValue, subtitle: section.subtitle)
-                .padding(.horizontal, Theme.Spacing.lg)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: Theme.Spacing.md) {
-                    ForEach(items) { reel in
-                        ReelCard(reel: reel, thumbHeight: 280)
-                            .frame(width: 230)
-                    }
-                }
-                .padding(.horizontal, Theme.Spacing.lg)
-            }
-        }
-    }
-
-    private func trendingGrid(section: ReelSection, items: [ReelPost]) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SectionHeader(title: section.rawValue, subtitle: section.subtitle)
-                .padding(.horizontal, Theme.Spacing.lg)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: Theme.Spacing.md),
-                                GridItem(.flexible(), spacing: Theme.Spacing.md)],
-                      spacing: Theme.Spacing.md) {
-                ForEach(items) { reel in
-                    ReelCard(reel: reel, thumbHeight: 210)
-                }
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-        }
-    }
-}
-
-// MARK: - Styling helpers
+// MARK: - Topic styling
 enum ReelStyle {
     static func color(_ topic: ReelTopic) -> Color {
         switch topic {
         case .sleepers: return Theme.Colors.info
         case .tradeTargets: return Theme.Colors.accentSecondary
         case .waiverPickups: return Theme.Colors.positive
-        case .dynastyBuys: return Color(hex: 0xB084FF)
+        case .dynastyBuys: return Theme.Colors.violet
         case .injuryNews: return Theme.Colors.negative
         case .draftStrategy: return Theme.Colors.accent
         }
     }
 }
 
-// MARK: - Reel card
-struct ReelCard: View {
+func formatCount(_ n: Int) -> String {
+    if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+    if n >= 1_000 { return String(format: "%.1fK", Double(n) / 1_000) }
+    return "\(n)"
+}
+
+// MARK: - In-app vertical feed
+struct ReelsView: View {
+    @EnvironmentObject var state: AppState
+    @State private var currentID: UUID?
+    @State private var muted = true
+    @State private var showSaved = false
+
+    var body: some View {
+        ScrollView(.vertical) {
+            LazyVStack(spacing: 0) {
+                ForEach(state.reels) { reel in
+                    ReelCell(reel: reel, muted: $muted, isCurrent: currentID == reel.id)
+                        .containerRelativeFrame([.horizontal, .vertical])
+                        .id(reel.id)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $currentID)
+        .scrollIndicators(.hidden)
+        .background(.black)
+        .ignoresSafeArea(edges: .top)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
+        .overlay(alignment: .top) { header }
+        .onAppear { if currentID == nil { currentID = state.reels.first?.id } }
+        .sheet(isPresented: $showSaved) {
+            NavigationStack { SavedReelsView() }
+                .preferredColorScheme(.dark)
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Reels")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.5), radius: 4)
+            Spacer()
+            Button { showSaved = true } label: {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(9)
+                    .background(.black.opacity(0.35), in: Circle())
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.lg)
+        .padding(.top, 54)
+    }
+}
+
+// MARK: - One full-screen reel
+struct ReelCell: View {
     @EnvironmentObject var state: AppState
     @Environment(\.openURL) private var openURL
     let reel: ReelPost
-    var thumbHeight: CGFloat
+    @Binding var muted: Bool
+    let isCurrent: Bool
 
     private var creator: ContentCreator? { state.creator(reel.creatorID) }
-    private var isSaved: Bool { state.savedReels.contains(reel.id) }
+    private var liked: Bool { state.likedReels.contains(reel.id) }
+    private var saved: Bool { state.savedReels.contains(reel.id) }
+    private var likeCount: Int { abs(reel.id.uuidString.hashValue) % 9000 + 1200 + (liked ? 1 : 0) }
 
     var body: some View {
+        ZStack(alignment: .bottom) {
+            Color.black
+            ReelPlayerView(reel: reel, isActive: isCurrent, muted: muted)
+            Theme.Gradient.bottomScrim.allowsHitTesting(false)
+
+            HStack(alignment: .bottom, spacing: Theme.Spacing.md) {
+                info
+                Spacer(minLength: 0)
+                rightRail
+            }
+            .padding(.horizontal, Theme.Spacing.lg)
+            .padding(.bottom, Theme.Spacing.lg)
+        }
+        .clipped()
+    }
+
+    // Bottom-left info
+    private var info: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            thumbnail
-            creatorRow
-            Text(reel.title)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.Colors.textPrimary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-            tagRow
-            HStack(spacing: 4) {
-                Image(systemName: "eye.fill").font(.system(size: 9))
-                Text(reel.views)
-                Text("·")
-                Text(reel.datePosted.relativeShort)
-            }
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(Theme.Colors.textTertiary)
-            actionBar
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.Spacing.sm)
-        .background(Theme.Colors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
-            .stroke(Theme.Colors.stroke, lineWidth: 1))
-    }
-
-    private var thumbnail: some View {
-        Button { watch() } label: {
-            ZStack {
-                AsyncImage(url: URL(string: reel.thumbnailURL)) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        placeholder
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: thumbHeight)
-                .clipped()
-
-                // Gradient scrim for legibility
-                LinearGradient(colors: [.clear, .black.opacity(0.55)],
-                               startPoint: .center, endPoint: .bottom)
-
-                // Play button
-                Image(systemName: "play.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.black)
-                    .frame(width: 46, height: 46)
-                    .background(.white.opacity(0.92))
-                    .clipShape(Circle())
-
-                VStack {
-                    HStack {
-                        topicTag
-                        Spacer()
-                        platformTag
-                    }
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Text(reel.durationLabel)
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6).padding(.vertical, 3)
-                            .background(.black.opacity(0.65))
-                            .clipShape(Capsule())
-                    }
-                }
-                .padding(Theme.Spacing.sm)
-            }
-            .frame(height: thumbHeight)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var placeholder: some View {
-        ZStack {
-            LinearGradient(colors: [ReelStyle.color(reel.topic).opacity(0.55),
-                                    Theme.Colors.surfaceElevated],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            Image(systemName: reel.topic.systemImage)
-                .font(.system(size: 40, weight: .bold))
-                .foregroundStyle(.white.opacity(0.25))
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: thumbHeight)
-    }
-
-    private var topicTag: some View {
-        HStack(spacing: 3) {
-            Image(systemName: reel.topic.systemImage)
-            Text(reel.topic.rawValue)
-        }
-        .font(.system(size: 9, weight: .heavy))
-        .foregroundStyle(.black)
-        .padding(.horizontal, 6).padding(.vertical, 3)
-        .background(ReelStyle.color(reel.topic))
-        .clipShape(Capsule())
-    }
-
-    private var platformTag: some View {
-        Image(systemName: creator?.platform.systemImage ?? "play.rectangle.fill")
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: 24, height: 24)
-            .background(.black.opacity(0.55))
-            .clipShape(Circle())
-    }
-
-    private var creatorRow: some View {
-        HStack(spacing: 6) {
-            CreatorAvatar(creator: creator, size: 24)
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 3) {
-                    Text(creator?.name ?? "Unknown")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                        .lineLimit(1)
+            HStack(spacing: 8) {
+                CreatorAvatar(creator: creator, size: 34)
+                HStack(spacing: 4) {
+                    Text(creator?.name ?? "Caldwell Corner")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
                     if creator?.verified == true {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(Theme.Colors.info)
+                        Image(systemName: "checkmark.seal.fill").font(.system(size: 11)).foregroundStyle(Theme.Colors.info)
                     }
                 }
                 Text(creator?.platform.rawValue ?? "")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.7))
             }
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var tagRow: some View {
-        HStack(spacing: 4) {
-            ForEach(reel.tags.prefix(3), id: \.self) { tag in
-                Text("#\(tag.replacingOccurrences(of: " ", with: ""))")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Theme.Colors.accent)
-                    .lineLimit(1)
+            Text(reel.title)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(3)
+            HStack(spacing: 8) {
+                Tag(text: reel.topic.rawValue, color: ReelStyle.color(reel.topic), filled: true)
+                Text("\(reel.views) views").font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
             }
-        }
-    }
-
-    private var actionBar: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            Button { watch() } label: {
-                Label("Watch", systemImage: "play.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
-                    .background(Theme.Colors.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
-            }
-            .buttonStyle(.plain)
-
-            Button { state.toggleSavedReel(reel.id) } label: {
-                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isSaved ? Theme.Colors.accentSecondary : Theme.Colors.textSecondary)
-                    .frame(width: 34, height: 30)
-                    .background(Theme.Colors.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
-            }
-            .buttonStyle(.plain)
-
             if let url = reel.url {
-                ShareLink(item: url) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .frame(width: 34, height: 30)
-                        .background(Theme.Colors.surfaceElevated)
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
+                Button { openURL(url) } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("View original")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(.white.opacity(0.15), in: Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func watch() {
-        if let url = reel.url { openURL(url) }
+    // Right action rail
+    private var rightRail: some View {
+        VStack(spacing: Theme.Spacing.lg) {
+            railButton(liked ? "heart.fill" : "heart", label: formatCount(likeCount),
+                       tint: liked ? Theme.Colors.negative : .white) {
+                withAnimation(Theme.Anim.snappy) { state.toggleLikedReel(reel.id) }
+            }
+            railButton(saved ? "bookmark.fill" : "bookmark", label: "Save",
+                       tint: saved ? Theme.Colors.accentSecondary : .white) {
+                withAnimation(Theme.Anim.snappy) { state.toggleSavedReel(reel.id) }
+            }
+            if let url = reel.url {
+                ShareLink(item: url) {
+                    VStack(spacing: 4) {
+                        railIcon("square.and.arrow.up", tint: .white)
+                        Text("Share").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            railButton(muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                       label: muted ? "Muted" : "Sound", tint: .white) {
+                muted.toggle()
+            }
+        }
+    }
+
+    private func railButton(_ icon: String, label: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                railIcon(icon, tint: tint)
+                Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func railIcon(_ icon: String, tint: Color) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: 46, height: 46)
+            .background(.black.opacity(0.3), in: Circle())
+    }
+}
+
+// MARK: - Simulated in-app player (thumbnail + playback UI)
+// Plays inside the app. Drop an AVPlayer here when a direct video URL exists;
+// the thumbnail doubles as the loading state and the failure fallback.
+struct ReelPlayerView: View {
+    let reel: ReelPost
+    let isActive: Bool
+    let muted: Bool
+
+    @State private var isPlaying = true
+    @State private var progress: Double = 0
+    private let ticker = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+
+    private var playing: Bool { isActive && isPlaying }
+
+    var body: some View {
+        ZStack {
+            thumbnail
+            if !playing {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(22)
+                    .background(.black.opacity(0.35), in: Circle())
+                    .transition(.opacity)
+            }
+            VStack {
+                ProgressView(value: min(1, progress))
+                    .tint(.white)
+                    .padding(.horizontal, Theme.Spacing.lg)
+                    .padding(.top, 88)
+                Spacer()
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(Theme.Anim.quick) { isPlaying.toggle() } }
+        .onReceive(ticker) { _ in advance() }
+        .onChange(of: isActive) { _, active in
+            if active { progress = 0; isPlaying = true }
+        }
+    }
+
+    private func advance() {
+        guard playing else { return }
+        let duration = max(8, Double(reel.durationSeconds))
+        progress += 0.1 / duration
+        if progress >= 1 { progress = 0 }     // loop
+    }
+
+    @ViewBuilder private var thumbnail: some View {
+        AsyncImage(url: URL(string: reel.thumbnailURL)) { phase in
+            switch phase {
+            case .success(let image):
+                image.resizable().scaledToFill()
+            case .empty:
+                ZStack { fallback; ProgressView().tint(.white) }
+            case .failure:
+                fallback
+            @unknown default:
+                fallback
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+
+    private var fallback: some View {
+        ZStack {
+            LinearGradient(colors: [ReelStyle.color(reel.topic).opacity(0.35), .black],
+                           startPoint: .top, endPoint: .bottom)
+            VStack(spacing: 8) {
+                Image(systemName: reel.topic.systemImage)
+                    .font(.system(size: 40))
+                    .foregroundStyle(.white.opacity(0.5))
+                Text("Preview").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.6))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -346,49 +276,37 @@ struct ReelCard: View {
 struct CreatorAvatar: View {
     let creator: ContentCreator?
     var size: CGFloat = 28
-
-    private var initials: String { (creator?.name ?? "?").initials }
-    private var tint: Color {
-        creator?.isCaldwell == true ? Theme.Colors.accent : Theme.Colors.info
-    }
+    private var tint: Color { creator?.isCaldwell == true ? Theme.Colors.accent : Theme.Colors.info }
 
     var body: some View {
-        Text(initials)
-            .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
-            .foregroundStyle(.black)
+        Text((creator?.name ?? "?").initials)
+            .font(.system(size: size * 0.4, weight: .bold))
+            .foregroundStyle(.white)
             .frame(width: size, height: size)
-            .background(
-                LinearGradient(colors: [tint, tint.opacity(0.6)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing))
+            .background(tint.opacity(0.8))
             .clipShape(Circle())
+            .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1))
     }
 }
 
-// MARK: - Saved reels
+// MARK: - Saved reels (library)
 struct SavedReelsView: View {
     @EnvironmentObject var state: AppState
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         ScrollView {
             if state.savedReelPosts.isEmpty {
                 VStack(spacing: Theme.Spacing.md) {
-                    Image(systemName: "bookmark")
-                        .font(.system(size: 40)).foregroundStyle(Theme.Colors.textTertiary)
-                    Text("No saved reels yet")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                    Text("Tap the bookmark on any reel to save it for later.")
-                        .font(.system(size: 13)).foregroundStyle(Theme.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
+                    Image(systemName: "bookmark").font(.system(size: 36)).foregroundStyle(Theme.Colors.textTertiary)
+                    Text("No saved reels yet").font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
+                    Text("Tap the bookmark on any reel to save it.").font(.system(size: 13)).foregroundStyle(Theme.Colors.textSecondary)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 80)
-                .padding(.horizontal, Theme.Spacing.xl)
+                .frame(maxWidth: .infinity).padding(.top, 80).padding(.horizontal, Theme.Spacing.xl)
             } else {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: Theme.Spacing.md),
-                                    GridItem(.flexible(), spacing: Theme.Spacing.md)],
-                          spacing: Theme.Spacing.md) {
+                LazyVStack(spacing: Theme.Spacing.sm) {
                     ForEach(state.savedReelPosts) { reel in
-                        ReelCard(reel: reel, thumbHeight: 210)
+                        SavedReelRow(reel: reel)
                     }
                 }
                 .padding(Theme.Spacing.lg)
@@ -397,5 +315,33 @@ struct SavedReelsView: View {
         .screenBackground()
         .navigationTitle("Saved")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() }.foregroundStyle(Theme.Colors.accent) } }
+    }
+}
+
+struct SavedReelRow: View {
+    @EnvironmentObject var state: AppState
+    let reel: ReelPost
+    private var creator: ContentCreator? { state.creator(reel.creatorID) }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            ZStack {
+                RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous)
+                    .fill(ReelStyle.color(reel.topic).opacity(0.18))
+                Image(systemName: reel.topic.systemImage).foregroundStyle(ReelStyle.color(reel.topic))
+            }
+            .frame(width: 54, height: 54)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(reel.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary).lineLimit(2)
+                Text("\(creator?.name ?? "") · \(reel.views) views").font(.system(size: 11)).foregroundStyle(Theme.Colors.textTertiary)
+            }
+            Spacer()
+            Button { state.toggleSavedReel(reel.id) } label: {
+                Image(systemName: "bookmark.fill").foregroundStyle(Theme.Colors.accentSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .card(padding: Theme.Spacing.md)
     }
 }
