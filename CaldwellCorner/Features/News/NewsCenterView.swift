@@ -33,7 +33,7 @@ struct NewsDetailView: View {
                         .clipShape(Capsule())
                 }
                 Text(item.headline)
-                    .font(.system(size: 24, weight: .heavy, design: .rounded))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Theme.Colors.textPrimary)
                 Text("\(item.source) · \(item.timestamp.relativeShort)")
                     .font(.system(size: 12))

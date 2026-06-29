@@ -38,10 +38,10 @@ struct GameCenterView: View {
         HStack(spacing: 8) {
             if live { LivePulse() }
             Text(title)
-                .font(.system(size: 18, weight: .heavy, design: .rounded))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Theme.Colors.textPrimary)
             Text("\(count)")
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.Colors.textTertiary)
             Spacer()
         }
@@ -187,15 +187,14 @@ struct TeamLogo: View {
     var size: CGFloat = 34
     var body: some View {
         RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-            .fill(LinearGradient(colors: [Color(hex: colorHex), Color(hex: colorHex).opacity(0.7)],
-                                 startPoint: .topLeading, endPoint: .bottomTrailing))
+            .fill(Color(hex: colorHex))
             .frame(width: size, height: size)
             .overlay(
                 Text(abbr.prefix(3))
-                    .font(.system(size: size * 0.34, weight: .heavy, design: .rounded))
+                    .font(.system(size: size * 0.32, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
             )
             .overlay(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .strokeBorder(.white.opacity(0.15), lineWidth: 1))
+                .strokeBorder(.white.opacity(0.12), lineWidth: 1))
     }
 }

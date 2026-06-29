@@ -11,9 +11,10 @@ enum AchievementStyle {
         case .mythic: return Theme.Colors.negative
         }
     }
+    /// Flat rarity fill (kept as a gradient type for source compatibility).
     static func gradient(_ r: AchievementRarity) -> LinearGradient {
-        LinearGradient(colors: [color(r).opacity(0.9), color(r).opacity(0.45)],
-                       startPoint: .topLeading, endPoint: .bottomTrailing)
+        LinearGradient(colors: [color(r).opacity(0.85), color(r).opacity(0.85)],
+                       startPoint: .top, endPoint: .bottom)
     }
 }
 
@@ -90,8 +91,8 @@ struct AchievementsView: View {
         NavigationLink { LeaderboardView() } label: {
             HStack(spacing: Theme.Spacing.md) {
                 Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 20)).foregroundStyle(.black)
-                    .frame(width: 40, height: 40).background(Theme.Gradient.gold).clipShape(Circle())
+                    .font(.system(size: 17)).foregroundStyle(Theme.Colors.accentSecondary)
+                    .frame(width: 40, height: 40).background(Theme.Colors.accentSecondary.opacity(0.14)).clipShape(Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Leaderboards").font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
                     Text("Global · League · Weekly · Season · All-Time").font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)
@@ -165,12 +166,10 @@ struct LevelBadge: View {
     var size: CGFloat = 64
     var body: some View {
         ZStack {
-            Circle().fill(Theme.Gradient.accent)
-                .shadow(color: Theme.Colors.accent.opacity(0.4), radius: 10, y: 4)
-            Circle().strokeBorder(.white.opacity(0.25), lineWidth: 2)
+            Circle().fill(Theme.Colors.accent)
             VStack(spacing: -2) {
-                Text("LVL").font(.system(size: size * 0.16, weight: .heavy)).foregroundStyle(.black.opacity(0.7))
-                Text("\(level)").font(.system(size: size * 0.42, weight: .heavy, design: .rounded)).foregroundStyle(.black)
+                Text("LVL").font(.system(size: size * 0.15, weight: .bold)).foregroundStyle(.black.opacity(0.65))
+                Text("\(level)").font(.system(size: size * 0.4, weight: .bold, design: .rounded)).foregroundStyle(.black)
             }
         }
         .frame(width: size, height: size)
@@ -203,14 +202,13 @@ struct AchievementRow: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(AchievementStyle.gradient(achievement.rarity))
-                    .opacity(achievement.unlocked ? 1 : 0.25)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(color.opacity(achievement.unlocked ? 0.16 : 0.07))
                 Image(systemName: achievement.displayIcon)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(achievement.unlocked ? .black : Theme.Colors.textTertiary)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(achievement.unlocked ? color : Theme.Colors.textTertiary)
             }
-            .frame(width: 52, height: 52)
+            .frame(width: 48, height: 48)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
