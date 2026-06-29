@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var games: GameCenterStore
     @Binding var showPaywall: Bool
     @State private var isLoading = true
 
@@ -17,11 +18,13 @@ struct DashboardView: View {
             .padding(Theme.Spacing.lg)
         }
         .onAppear {
+            games.subscribe()
             guard isLoading else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 withAnimation(Theme.Anim.standard) { isLoading = false }
             }
         }
+        .onDisappear { games.unsubscribe() }
         .screenBackground()
         .navigationTitle("Caldwell Corner")
         .navigationBarTitleDisplayMode(.inline)
@@ -44,6 +47,8 @@ struct DashboardView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
             header.appear(delay: 0.0)
+
+            if games.hasLiveGames { liveStrip.appear(delay: 0.03) }
 
             if let league = state.selectedLeague, let team = league.userTeam {
                 teamSummary(league: league, team: team).appear(delay: 0.05)
@@ -118,6 +123,24 @@ struct DashboardView: View {
             }
         }
         .card()
+    }
+
+    private var liveStrip: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            HStack(spacing: 8) {
+                LivePulse()
+                SectionHeader(title: "Live Now")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Spacing.md) {
+                    ForEach(games.liveGames) { game in
+                        NavigationLink { GameDetailView(gameID: game.id) } label: {
+                            MiniGameCard(game: game)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var quickActions: some View {

@@ -39,5 +39,7 @@ struct RootView: View {
 }
 
 #Preview {
-    RootView().environmentObject(AppState())
+    RootView()
+        .environmentObject(AppState())
+        .environmentObject(GameCenterStore())
 }
