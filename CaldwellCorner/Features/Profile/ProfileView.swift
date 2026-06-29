@@ -41,9 +41,7 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var initials: String {
-        state.profile.displayName.split(separator: " ").compactMap { $0.first }.map(String.init).prefix(2).joined().uppercased()
-    }
+    private var initials: String { state.profile.displayName.initials }
 
     private var subscriptionCard: some View {
         Group {

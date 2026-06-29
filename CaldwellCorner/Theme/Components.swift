@@ -121,15 +121,8 @@ struct PlayerAvatar: View {
     let position: String
     var size: CGFloat = 44
 
-    private var initials: String {
-        let parts = name.split(separator: " ")
-        let first = parts.first?.first.map(String.init) ?? ""
-        let last = parts.dropFirst().first?.first.map(String.init) ?? ""
-        return (first + last).uppercased()
-    }
-
     var body: some View {
-        Text(initials)
+        Text(name.initials)
             .font(.system(size: size * 0.36, weight: .bold, design: .rounded))
             .foregroundStyle(Theme.Colors.textPrimary)
             .frame(width: size, height: size)
