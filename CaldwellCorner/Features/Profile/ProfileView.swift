@@ -77,12 +77,14 @@ struct ProfileView: View {
     }
 
     private var lifetimeStats: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+        let s = state.progression
+        return VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             SectionHeader(title: "Lifetime Stats")
             HStack(spacing: Theme.Spacing.sm) {
+                MetricChip(label: "Total AP", value: "\(s.totalAP)", tint: Theme.Colors.accent)
+                MetricChip(label: "Level", value: "\(s.level)", tint: Theme.Colors.info)
                 MetricChip(label: "Leagues", value: "\(state.profile.lifetimeLeagues)")
                 MetricChip(label: "Titles", value: "\(state.profile.championships)", tint: Theme.Colors.accentSecondary)
-                MetricChip(label: "Member", value: state.profile.memberSince)
             }
         }
     }
@@ -104,23 +106,64 @@ struct ProfileView: View {
     }
 
     private var achievementsSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SectionHeader(title: "Achievements")
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Spacing.md) {
-                ForEach(state.achievements) { a in
-                    VStack(spacing: 6) {
-                        Image(systemName: a.systemImage)
-                            .font(.system(size: 26))
-                            .foregroundStyle(a.unlocked ? Theme.Colors.accentSecondary : Theme.Colors.textTertiary)
-                        Text(a.title)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(a.unlocked ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
-                            .multilineTextAlignment(.center)
+        let s = state.progression
+        let badges = state.achievements
+            .filter { $0.unlocked }
+            .sorted { $0.rarity.order > $1.rarity.order }
+            .prefix(8)
+        let globalRank = state.leaderboard(.global).first(where: { $0.isUser })?.rank
+
+        return VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            SectionHeader(title: "Progression")
+
+            NavigationLink { AchievementsView() } label: {
+                HStack(spacing: Theme.Spacing.md) {
+                    LevelBadge(level: s.level, size: 56)
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 6) {
+                            Text("\(s.totalAP) AP")
+                                .font(.system(size: 17, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Theme.Colors.textPrimary)
+                            Text(s.levelTitle.uppercased())
+                                .font(.system(size: 9, weight: .heavy)).foregroundStyle(.black)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Theme.Colors.accent).clipShape(Capsule())
+                        }
+                        ProgressBar(fraction: s.progressInLevel)
+                        Text("\(s.unlockedCount)/\(s.totalCount) unlocked · \(Int(s.completion * 100))% complete")
+                            .font(.system(size: 11)).foregroundStyle(Theme.Colors.textSecondary)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 80)
-                    .card(padding: Theme.Spacing.sm)
-                    .opacity(a.unlocked ? 1 : 0.5)
+                    Image(systemName: "chevron.right").foregroundStyle(Theme.Colors.textTertiary)
                 }
+                .card()
+            }
+
+            if !badges.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        ForEach(Array(badges)) { a in
+                            ZStack {
+                                Circle().fill(AchievementStyle.gradient(a.rarity)).frame(width: 46, height: 46)
+                                Image(systemName: a.systemImage).font(.system(size: 18, weight: .bold)).foregroundStyle(.black)
+                            }
+                        }
+                    }
+                }
+            }
+
+            NavigationLink { LeaderboardView() } label: {
+                HStack(spacing: Theme.Spacing.md) {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.system(size: 18)).foregroundStyle(.black)
+                        .frame(width: 38, height: 38).background(Theme.Gradient.gold).clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Leaderboards").font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
+                        Text(globalRank.map { "You're #\($0) globally" } ?? "See where you rank").font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(Theme.Colors.textTertiary)
+                }
+                .card(padding: Theme.Spacing.md)
             }
         }
     }

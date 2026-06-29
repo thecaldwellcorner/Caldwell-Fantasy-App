@@ -17,7 +17,8 @@ final class AppState: ObservableObject {
     @Published var rookies: [RookieProspect] = MockData.buildRookies()
     @Published var pickValues: [DraftPickValue] = MockData.buildPickValues()
     @Published var premiumContent: [PremiumContent] = MockData.buildPremiumContent()
-    @Published var achievements: [Achievement] = MockData.buildAchievements()
+    @Published var achievements: [Achievement] = MockAchievements.all
+    @Published var achievementActivity: [AchievementActivity] = MockAchievements.activity
     @Published var plans: [PlanOption] = MockData.buildPlans()
 
     // Reels feed
@@ -92,6 +93,17 @@ final class AppState: ObservableObject {
             m.name.lowercased().contains(q) ||
             (m.name.split(separator: " ").last.map { q.contains($0.lowercased()) } ?? false)
         }
+    }
+
+    // MARK: - Achievements / progression
+    var progression: Progression.Summary { Progression.summary(for: achievements) }
+
+    func achievements(in category: AchievementCategory) -> [Achievement] {
+        achievements.filter { $0.category == category }
+    }
+
+    func leaderboard(_ scope: LeaderboardScope) -> [LeaderboardEntry] {
+        MockAchievements.leaderboard(scope, userAP: progression.totalAP)
     }
 
     func metricsForWaiverPool(limit: Int = 12) -> [PlayerMetrics] {
