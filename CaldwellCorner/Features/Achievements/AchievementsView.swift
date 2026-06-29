@@ -38,10 +38,10 @@ struct AchievementsView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                 progressionCard.appear()
                 leaderboardLink.appear(delay: 0.05)
-                rarityBreakdown.appear(delay: 0.10)
+                rarityBreakdown.appear(delay: 0.08)
                 categoryFilter
                 achievementsList
-                activitySection.appear(delay: 0.05)
+                activitySection
             }
             .padding(Theme.Spacing.lg)
         }
@@ -50,26 +50,17 @@ struct AchievementsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // MARK: Progression card
     private var progressionCard: some View {
         VStack(spacing: Theme.Spacing.lg) {
             HStack(spacing: Theme.Spacing.lg) {
-                LevelBadge(level: summary.level, size: 78)
+                LevelBadge(level: summary.level, size: 72)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(summary.levelTitle.uppercased())
-                        .font(.system(size: 12, weight: .heavy))
-                        .foregroundStyle(Theme.Colors.accent)
+                    DSEyebrow(text: summary.levelTitle, color: Theme.Colors.accent)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("\(summary.totalAP)")
-                            .font(.system(size: 30, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                        Text("AP")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Theme.Colors.textSecondary)
+                        Text("\(summary.totalAP)").dsNumeric(28)
+                        Text("AP").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.Colors.textSecondary)
                     }
-                    Text("\(summary.unlockedCount)/\(summary.totalCount) unlocked · \(Int(summary.completion * 100))%")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text("\(summary.unlockedCount)/\(summary.totalCount) unlocked · \(Int(summary.completion * 100))%").dsCaption()
                 }
                 Spacer()
             }
@@ -81,7 +72,7 @@ struct AchievementsView: View {
                 }
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.Colors.textTertiary)
-                ProgressBar(fraction: summary.progressInLevel, tint: Theme.Colors.accent)
+                ProgressBar(fraction: summary.progressInLevel)
             }
         }
         .card(elevated: true)
@@ -90,15 +81,13 @@ struct AchievementsView: View {
     private var leaderboardLink: some View {
         NavigationLink { LeaderboardView() } label: {
             HStack(spacing: Theme.Spacing.md) {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 17)).foregroundStyle(Theme.Colors.accentSecondary)
-                    .frame(width: 40, height: 40).background(Theme.Colors.accentSecondary.opacity(0.14)).clipShape(Circle())
+                DSIconBadge(systemName: "chart.bar.fill", tint: Theme.Colors.accentSecondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Leaderboards").font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
-                    Text("Global · League · Weekly · Season · All-Time").font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)
+                    Text("Leaderboards").dsCardTitle()
+                    Text("Global · League · Weekly · Season · All-Time").dsCaption()
                 }
                 Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(Theme.Colors.textTertiary)
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
             }
             .card(padding: Theme.Spacing.md)
         }
@@ -107,20 +96,16 @@ struct AchievementsView: View {
     private var rarityBreakdown: some View {
         HStack(spacing: Theme.Spacing.sm) {
             ForEach(AchievementRarity.allCases) { r in
-                VStack(spacing: 3) {
-                    Text("\(summary.rarityCounts[r] ?? 0)")
-                        .font(.system(size: 16, weight: .heavy, design: .rounded))
-                        .foregroundStyle(AchievementStyle.color(r))
-                    Text(r.rawValue.uppercased())
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(Theme.Colors.textTertiary)
+                VStack(spacing: 4) {
+                    Text("\(summary.rarityCounts[r] ?? 0)").dsNumeric(16, color: AchievementStyle.color(r))
+                    DSEyebrow(text: r.rawValue)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Theme.Spacing.sm)
-                .background(AchievementStyle.color(r).opacity(0.10))
+                .background(Theme.Colors.surface)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous)
-                    .strokeBorder(AchievementStyle.color(r).opacity(0.4), lineWidth: 1))
+                    .strokeBorder(Theme.Colors.stroke, lineWidth: 1))
             }
         }
     }
@@ -128,11 +113,11 @@ struct AchievementsView: View {
     private var categoryFilter: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.sm) {
-                FilterChip(title: "ALL", selected: category == nil) {
+                FilterChip(title: "All", selected: category == nil) {
                     withAnimation(Theme.Anim.quick) { category = nil }
                 }
                 ForEach(AchievementCategory.allCases) { c in
-                    FilterChip(title: c.rawValue, selected: category == c, color: Theme.Colors.accent) {
+                    FilterChip(title: c.rawValue, selected: category == c) {
                         withAnimation(Theme.Anim.quick) { category = category == c ? nil : c }
                     }
                 }
@@ -141,13 +126,13 @@ struct AchievementsView: View {
     }
 
     private var achievementsList: some View {
-        LazyVStack(spacing: Theme.Spacing.md) {
+        LazyVStack(spacing: Theme.Spacing.sm) {
             ForEach(filtered) { a in
                 AchievementRow(achievement: a)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.opacity)
             }
         }
-        .animation(Theme.Anim.spring, value: category)
+        .animation(Theme.Anim.quick, value: category)
     }
 
     private var activitySection: some View {
@@ -168,7 +153,7 @@ struct LevelBadge: View {
         ZStack {
             Circle().fill(Theme.Colors.accent)
             VStack(spacing: -2) {
-                Text("LVL").font(.system(size: size * 0.15, weight: .bold)).foregroundStyle(.black.opacity(0.65))
+                Text("LVL").font(.system(size: size * 0.15, weight: .bold)).foregroundStyle(.black.opacity(0.6))
                 Text("\(level)").font(.system(size: size * 0.4, weight: .bold, design: .rounded)).foregroundStyle(.black)
             }
         }
@@ -189,7 +174,7 @@ struct ProgressBar: View {
                     .frame(width: geo.size.width * CGFloat(animated ? max(0.0, min(1, fraction)) : 0))
             }
         }
-        .frame(height: 8)
+        .frame(height: 7)
         .onAppear { withAnimation(Theme.Anim.spring.delay(0.1)) { animated = true } }
     }
 }
@@ -201,58 +186,38 @@ struct AchievementRow: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(color.opacity(achievement.unlocked ? 0.16 : 0.07))
-                Image(systemName: achievement.displayIcon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(achievement.unlocked ? color : Theme.Colors.textTertiary)
-            }
-            .frame(width: 48, height: 48)
+            DSIconBadge(systemName: achievement.displayIcon,
+                        tint: achievement.unlocked ? color : Theme.Colors.textTertiary, size: 46)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(achievement.displayTitle)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                        .lineLimit(1)
+                    Text(achievement.displayTitle).dsCardTitle().lineLimit(1)
                     if achievement.unlocked {
                         Image(systemName: "checkmark.seal.fill").font(.system(size: 12)).foregroundStyle(Theme.Colors.positive)
                     }
                 }
-                Text(achievement.displayDetail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .lineLimit(2)
+                Text(achievement.displayDetail).dsCaption().lineLimit(2)
                 if achievement.unlocked {
-                    Text(unlockedLabel)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Theme.Colors.textTertiary)
+                    Text(unlockedLabel).font(.system(size: 10)).foregroundStyle(Theme.Colors.textTertiary)
                 } else if !achievement.isMasked {
                     HStack(spacing: 6) {
                         ProgressBar(fraction: achievement.fraction, tint: color)
                         Text("\(achievement.progress)/\(achievement.target)")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.Colors.textSecondary)
                     }
                 }
             }
             Spacer(minLength: 4)
 
-            VStack(spacing: 4) {
-                Text(achievement.rarity.rawValue.uppercased())
-                    .font(.system(size: 8, weight: .heavy))
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(color).clipShape(Capsule())
-                Text("+\(achievement.ap)")
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundStyle(achievement.unlocked ? Theme.Colors.accent : Theme.Colors.textTertiary)
-                Text("AP").font(.system(size: 8, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
+            VStack(spacing: 5) {
+                Tag(text: achievement.rarity.rawValue, color: color, filled: true)
+                Text("+\(achievement.ap)").dsNumeric(13, color: achievement.unlocked ? Theme.Colors.accent : Theme.Colors.textTertiary)
+                DSEyebrow(text: "AP")
             }
         }
         .card(padding: Theme.Spacing.md)
-        .opacity(achievement.unlocked ? 1 : 0.92)
+        .opacity(achievement.unlocked ? 1 : 0.9)
     }
 
     private var unlockedLabel: String {
@@ -283,16 +248,14 @@ struct ActivityRow: View {
     }
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
-            Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundStyle(tint).frame(width: 28)
+            Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint).frame(width: 26)
             VStack(alignment: .leading, spacing: 2) {
-                Text(activity.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
-                Text(activity.detail).font(.system(size: 11)).foregroundStyle(Theme.Colors.textTertiary)
+                Text(activity.title).dsCardTitle()
+                Text(activity.detail).dsCaption()
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                if activity.ap > 0 {
-                    Text("+\(activity.ap) AP").font(.system(size: 12, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.accent)
-                }
+                if activity.ap > 0 { Text("+\(activity.ap) AP").dsNumeric(12, color: Theme.Colors.accent) }
                 Text(activity.date.relativeShort).font(.system(size: 10)).foregroundStyle(Theme.Colors.textTertiary)
             }
         }

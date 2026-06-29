@@ -10,14 +10,20 @@ struct ProfileView: View {
                 header
                 subscriptionCard
                 lifetimeStats
+                progressionSection
                 watchlistSection
-                achievementsSection
-                settingsSection
             }
             .padding(Theme.Spacing.lg)
         }
         .screenBackground()
         .navigationTitle("Profile")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { SettingsView() } label: {
+                    Image(systemName: "gearshape").foregroundStyle(Theme.Colors.textPrimary)
+                }
+            }
+        }
     }
 
     private var header: some View {
@@ -27,31 +33,27 @@ struct ProfileView: View {
                     .fill(Theme.Colors.surfaceElevated)
                     .frame(width: 84, height: 84)
                     .overlay(Circle().strokeBorder(Theme.Colors.accent.opacity(0.6), lineWidth: 2))
-                    .overlay(Text(initials).font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.Colors.textPrimary))
+                    .overlay(Text(state.profile.displayName.initials).font(.system(size: 28, weight: .bold)).foregroundStyle(Theme.Colors.textPrimary))
                 if state.isPremium {
                     Image(systemName: "crown.fill")
-                        .font(.system(size: 14)).foregroundStyle(.black)
+                        .font(.system(size: 12)).foregroundStyle(.black)
                         .padding(6).background(Theme.Colors.accentSecondary).clipShape(Circle())
                 }
             }
-            Text(state.profile.displayName)
-                .font(.system(size: 20, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
-            Text("\(state.profile.handle) · \(state.profile.favoriteTeam)")
-                .font(.system(size: 13)).foregroundStyle(Theme.Colors.textSecondary)
+            Text(state.profile.displayName).dsScreenTitle()
+            Text("\(state.profile.handle) · \(state.profile.favoriteTeam)").dsBody()
         }
         .frame(maxWidth: .infinity)
     }
-
-    private var initials: String { state.profile.displayName.initials }
 
     private var subscriptionCard: some View {
         Group {
             if state.isPremium {
                 HStack(spacing: Theme.Spacing.md) {
-                    Image(systemName: "crown.fill").font(.system(size: 26)).foregroundStyle(Theme.Colors.accentSecondary)
+                    DSIconBadge(systemName: "crown.fill", tint: Theme.Colors.accentSecondary)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Premium Member").font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
-                        Text("All features unlocked · Annual plan").font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)
+                        Text("Premium Member").dsCardTitle()
+                        Text("All features unlocked · Annual plan").dsCaption()
                     }
                     Spacer()
                 }
@@ -59,11 +61,10 @@ struct ProfileView: View {
             } else {
                 Button { showPaywall = true } label: {
                     HStack(spacing: Theme.Spacing.md) {
-                        Image(systemName: "crown.fill").font(.system(size: 20)).foregroundStyle(Theme.Colors.accentSecondary)
-                            .frame(width: 40, height: 40).background(Theme.Colors.accentSecondary.opacity(0.14)).clipShape(Circle())
+                        DSIconBadge(systemName: "crown.fill", tint: Theme.Colors.accentSecondary)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Upgrade to Premium").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
-                            Text("Unlimited AI · Dynasty tools · Draft Guide").font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)
+                            Text("Upgrade to Premium").dsCardTitle()
+                            Text("Unlimited AI · Dynasty tools · Draft Guide").dsCaption()
                         }
                         Spacer()
                         Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Theme.Colors.textTertiary)
@@ -80,35 +81,16 @@ struct ProfileView: View {
             SectionHeader(title: "Lifetime Stats")
             HStack(spacing: Theme.Spacing.sm) {
                 MetricChip(label: "Total AP", value: "\(s.totalAP)", tint: Theme.Colors.accent)
-                MetricChip(label: "Level", value: "\(s.level)", tint: Theme.Colors.info)
+                MetricChip(label: "Level", value: "\(s.level)")
                 MetricChip(label: "Leagues", value: "\(state.profile.lifetimeLeagues)")
                 MetricChip(label: "Titles", value: "\(state.profile.championships)", tint: Theme.Colors.accentSecondary)
             }
         }
     }
 
-    private var watchlistSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SectionHeader(title: "Watchlist", subtitle: state.watchlist.isEmpty ? "Star players to track them" : nil)
-            if state.watchlist.isEmpty {
-                Text("No players yet — tap the star on any player profile.")
-                    .font(.system(size: 13)).foregroundStyle(Theme.Colors.textTertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .card(padding: Theme.Spacing.md)
-            } else {
-                ForEach(state.players.filter { state.watchlist.contains($0.id) }) { p in
-                    NavigationLink { PlayerDetailView(player: p) } label: { PlayerRow(player: p) }
-                }
-            }
-        }
-    }
-
-    private var achievementsSection: some View {
+    private var progressionSection: some View {
         let s = state.progression
-        let badges = state.achievements
-            .filter { $0.unlocked }
-            .sorted { $0.rarity.order > $1.rarity.order }
-            .prefix(8)
+        let badges = state.achievements.filter { $0.unlocked }.sorted { $0.rarity.order > $1.rarity.order }.prefix(8)
         let globalRank = state.leaderboard(.global).first(where: { $0.isUser })?.rank
 
         return VStack(alignment: .leading, spacing: Theme.Spacing.md) {
@@ -116,22 +98,16 @@ struct ProfileView: View {
 
             NavigationLink { AchievementsView() } label: {
                 HStack(spacing: Theme.Spacing.md) {
-                    LevelBadge(level: s.level, size: 56)
-                    VStack(alignment: .leading, spacing: 5) {
+                    LevelBadge(level: s.level, size: 54)
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
-                            Text("\(s.totalAP) AP")
-                                .font(.system(size: 17, weight: .heavy, design: .rounded))
-                                .foregroundStyle(Theme.Colors.textPrimary)
-                            Text(s.levelTitle.uppercased())
-                                .font(.system(size: 9, weight: .heavy)).foregroundStyle(.black)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Theme.Colors.accent).clipShape(Capsule())
+                            Text("\(s.totalAP) AP").dsCardTitle()
+                            Tag(text: s.levelTitle, color: Theme.Colors.accent, filled: true)
                         }
                         ProgressBar(fraction: s.progressInLevel)
-                        Text("\(s.unlockedCount)/\(s.totalCount) unlocked · \(Int(s.completion * 100))% complete")
-                            .font(.system(size: 11)).foregroundStyle(Theme.Colors.textSecondary)
+                        Text("\(s.unlockedCount)/\(s.totalCount) unlocked · \(Int(s.completion * 100))%").dsCaption()
                     }
-                    Image(systemName: "chevron.right").foregroundStyle(Theme.Colors.textTertiary)
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
                 }
                 .card()
             }
@@ -140,10 +116,7 @@ struct ProfileView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Theme.Spacing.sm) {
                         ForEach(Array(badges)) { a in
-                            ZStack {
-                                Circle().fill(AchievementStyle.gradient(a.rarity)).frame(width: 46, height: 46)
-                                Image(systemName: a.systemImage).font(.system(size: 18, weight: .bold)).foregroundStyle(.black)
-                            }
+                            DSIconBadge(systemName: a.systemImage, tint: AchievementStyle.color(a.rarity), size: 44)
                         }
                     }
                 }
@@ -151,53 +124,31 @@ struct ProfileView: View {
 
             NavigationLink { LeaderboardView() } label: {
                 HStack(spacing: Theme.Spacing.md) {
-                    Image(systemName: "chart.bar.fill")
-                        .font(.system(size: 16)).foregroundStyle(Theme.Colors.accentSecondary)
-                        .frame(width: 38, height: 38).background(Theme.Colors.accentSecondary.opacity(0.14)).clipShape(Circle())
+                    DSIconBadge(systemName: "chart.bar.fill", tint: Theme.Colors.accentSecondary, size: 38)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Leaderboards").font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
-                        Text(globalRank.map { "You're #\($0) globally" } ?? "See where you rank").font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)
+                        Text("Leaderboards").dsCardTitle()
+                        Text(globalRank.map { "You're #\($0) globally" } ?? "See where you rank").dsCaption()
                     }
                     Spacer()
-                    Image(systemName: "chevron.right").foregroundStyle(Theme.Colors.textTertiary)
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
                 }
                 .card(padding: Theme.Spacing.md)
             }
         }
     }
 
-    private var settingsSection: some View {
+    private var watchlistSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SectionHeader(title: "Settings")
-            VStack(spacing: 0) {
-                settingRow("Notifications", "bell.fill")
-                Divider().overlay(Theme.Colors.stroke)
-                settingRow("Manage Subscription", "creditcard.fill")
-                Divider().overlay(Theme.Colors.stroke)
-                settingRow("Favorite Teams", "star.fill")
-                Divider().overlay(Theme.Colors.stroke)
-                settingRow("Help & Support", "questionmark.circle.fill")
-            }
-            .card(padding: 0)
-            if state.isPremium {
-                Button {
-                    state.profile.tier = .free
-                } label: {
-                    Text("Switch to Free (demo)")
-                        .font(.system(size: 13)).foregroundStyle(Theme.Colors.textTertiary)
+            SectionHeader(title: "Watchlist", subtitle: state.watchlist.isEmpty ? "Star players to track them" : nil)
+            if state.watchlist.isEmpty {
+                DSEmptyState(icon: "star", title: "No saved players",
+                             message: "Tap the star on any player profile to track them here.")
+                    .card(padding: Theme.Spacing.md)
+            } else {
+                ForEach(state.players.filter { state.watchlist.contains($0.id) }) { p in
+                    NavigationLink { PlayerDetailView(player: p) } label: { PlayerRow(player: p) }
                 }
-                .frame(maxWidth: .infinity)
             }
         }
-    }
-
-    private func settingRow(_ title: String, _ icon: String) -> some View {
-        HStack(spacing: Theme.Spacing.md) {
-            Image(systemName: icon).foregroundStyle(Theme.Colors.accent).frame(width: 24)
-            Text(title).font(.system(size: 15)).foregroundStyle(Theme.Colors.textPrimary)
-            Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Theme.Colors.textTertiary)
-        }
-        .padding(Theme.Spacing.md)
     }
 }

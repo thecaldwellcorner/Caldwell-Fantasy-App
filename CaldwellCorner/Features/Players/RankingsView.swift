@@ -13,30 +13,21 @@ struct RankingsView: View {
 
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {
-            VStack(spacing: Theme.Spacing.sm) {
+            ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.Spacing.sm) {
-                    Menu {
-                        ForEach(ScoringFormat.allCases) { f in
-                            Button(f.rawValue) { scoring = f }
-                        }
-                    } label: {
-                        DropdownLabel(text: scoring.rawValue, icon: "scalemass")
+                    ForEach(ScoringFormat.allCases) { f in
+                        FilterChip(title: f.rawValue, selected: scoring == f) { scoring = f }
                     }
-                    Toggle("Dynasty", isOn: $dynasty)
-                        .toggleStyle(.button)
-                        .tint(Theme.Colors.accent)
-                        .font(.system(size: 13, weight: .semibold))
-                    Toggle("SF", isOn: $superflex)
-                        .toggleStyle(.button)
-                        .tint(Theme.Colors.info)
-                        .font(.system(size: 13, weight: .semibold))
+                    Divider().frame(height: 22).overlay(Theme.Colors.stroke)
+                    FilterChip(title: "Dynasty", selected: dynasty) { dynasty.toggle() }
+                    FilterChip(title: "Superflex", selected: superflex) { superflex.toggle() }
                 }
+                .dsScreenPadding()
             }
-            .padding(.horizontal, Theme.Spacing.lg)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.Spacing.sm) {
-                    FilterChip(title: "ALL", selected: position == nil) { position = nil }
+                    FilterChip(title: "All", selected: position == nil) { position = nil }
                     ForEach(Position.allCases) { pos in
                         FilterChip(title: pos.rawValue, selected: position == pos,
                                    color: Theme.Colors.position(pos.rawValue)) {
@@ -44,16 +35,14 @@ struct RankingsView: View {
                         }
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.lg)
+                .dsScreenPadding()
             }
 
             HStack {
-                Text(rankingTitle)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.accent)
+                DSEyebrow(text: rankingTitle, color: Theme.Colors.accent)
                 Spacer()
             }
-            .padding(.horizontal, Theme.Spacing.lg)
+            .dsScreenPadding()
 
             ScrollView {
                 LazyVStack(spacing: Theme.Spacing.sm) {
@@ -63,7 +52,7 @@ struct RankingsView: View {
                         }
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.lg)
+                .dsScreenPadding()
                 .padding(.bottom, Theme.Spacing.xl)
             }
         }
@@ -79,25 +68,6 @@ struct RankingsView: View {
     }
 }
 
-struct DropdownLabel: View {
-    let text: String
-    let icon: String
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-            Text(text)
-            Image(systemName: "chevron.down").font(.system(size: 10))
-        }
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(Theme.Colors.textPrimary)
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.vertical, Theme.Spacing.sm)
-        .background(Theme.Colors.surface)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(Theme.Colors.stroke, lineWidth: 1))
-    }
-}
-
 struct RankingRow: View {
     let rank: Int
     let player: Player
@@ -105,20 +75,14 @@ struct RankingRow: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
             Text("\(rank)")
-                .font(.system(size: 16, weight: .heavy, design: .rounded))
-                .foregroundStyle(rank <= 3 ? Theme.Colors.accentSecondary : Theme.Colors.textSecondary)
-                .frame(width: 28)
+                .dsNumeric(15, color: rank <= 3 ? Theme.Colors.accentSecondary : Theme.Colors.textTertiary)
+                .frame(width: 26)
             PlayerAvatar(name: player.name, position: player.position.rawValue, size: 38)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(player.name)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.textPrimary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(player.name).dsCardTitle().lineLimit(1)
                 HStack(spacing: 6) {
                     PositionBadge(position: player.position.rawValue, compact: true)
-                    Text(player.team)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text(player.team).dsCaption()
                 }
             }
             Spacer()

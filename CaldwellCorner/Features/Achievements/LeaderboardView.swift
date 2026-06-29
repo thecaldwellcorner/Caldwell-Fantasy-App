@@ -12,15 +12,11 @@ struct LeaderboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 scopePicker
-                Podium(entries: podium)
-                    .animation(Theme.Anim.spring, value: scope)
+                Podium(entries: podium).animation(Theme.Anim.spring, value: scope)
                 youRow
                 LazyVStack(spacing: Theme.Spacing.sm) {
                     ForEach(rest) { entry in
-                        LeaderboardRow(entry: entry)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .bottom)),
-                                removal: .opacity))
+                        LeaderboardRow(entry: entry).transition(.opacity)
                     }
                 }
                 .animation(Theme.Anim.spring, value: scope)
@@ -47,7 +43,7 @@ struct LeaderboardView: View {
     @ViewBuilder private var youRow: some View {
         if let me = entries.first(where: { $0.isUser }) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("YOUR RANK").font(.system(size: 10, weight: .heavy)).foregroundStyle(Theme.Colors.textTertiary)
+                DSEyebrow(text: "Your Rank")
                 LeaderboardRow(entry: me)
             }
         }
@@ -59,9 +55,9 @@ struct Podium: View {
     let entries: [LeaderboardEntry]
     var body: some View {
         HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
-            if entries.count > 1 { pillar(entries[1], height: 96, place: 2) }
-            if let first = entries.first { pillar(first, height: 120, place: 1) }
-            if entries.count > 2 { pillar(entries[2], height: 80, place: 3) }
+            if entries.count > 1 { pillar(entries[1], height: 92, place: 2) }
+            if let first = entries.first { pillar(first, height: 116, place: 1) }
+            if entries.count > 2 { pillar(entries[2], height: 76, place: 3) }
         }
         .frame(maxWidth: .infinity)
     }
@@ -70,23 +66,39 @@ struct Podium: View {
         let medal: Color = place == 1 ? Theme.Colors.accentSecondary : place == 2 ? Color(hex: 0xC0C6CE) : Color(hex: 0xCD7F32)
         return VStack(spacing: 6) {
             ZStack(alignment: .bottomTrailing) {
-                Circle().fill(AchievementStyle.gradient(e.topRarity)).frame(width: 52, height: 52)
-                    .overlay(Text(e.name.initials).font(.system(size: 18, weight: .heavy, design: .rounded)).foregroundStyle(.black))
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 12)).foregroundStyle(.black)
-                    .padding(4).background(medal).clipShape(Circle())
-                    .opacity(place == 1 ? 1 : 0)
+                LeaderAvatar(name: e.name, rarity: e.topRarity, size: 50)
+                if place == 1 {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 11)).foregroundStyle(.black)
+                        .padding(4).background(medal).clipShape(Circle())
+                }
             }
             Text(e.name.split(separator: " ").first.map(String.init) ?? e.name)
-                .font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.Colors.textPrimary).lineLimit(1)
-            Text("\(e.ap) AP").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.Colors.textSecondary)
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(LinearGradient(colors: [medal.opacity(0.5), Theme.Colors.surface], startPoint: .top, endPoint: .bottom))
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary).lineLimit(1)
+            Text("\(e.ap) AP").dsCaption()
+            RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous)
+                .fill(Theme.Colors.surface)
                 .frame(height: height)
-                .overlay(Text("\(place)").font(.system(size: 26, weight: .heavy, design: .rounded)).foregroundStyle(medal))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.Colors.stroke, lineWidth: 1))
+                .overlay(Text("\(place)").dsNumeric(24, color: medal))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous).strokeBorder(Theme.Colors.stroke, lineWidth: 1))
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Rarity-tinted avatar
+struct LeaderAvatar: View {
+    let name: String
+    let rarity: AchievementRarity
+    var size: CGFloat = 38
+    var body: some View {
+        Text(name.initials)
+            .font(.system(size: size * 0.36, weight: .bold))
+            .foregroundStyle(Theme.Colors.textPrimary)
+            .frame(width: size, height: size)
+            .background(Theme.Colors.surfaceElevated)
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(AchievementStyle.color(rarity).opacity(0.7), lineWidth: 1.5))
     }
 }
 
@@ -97,31 +109,19 @@ struct LeaderboardRow: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
             Text("\(entry.rank)")
-                .font(.system(size: 16, weight: .heavy, design: .rounded))
-                .foregroundStyle(entry.isUser ? Theme.Colors.accent : Theme.Colors.textSecondary)
-                .frame(width: 30)
-
+                .dsNumeric(15, color: entry.isUser ? Theme.Colors.accent : Theme.Colors.textTertiary)
+                .frame(width: 28)
             MovementIndicator(movement: entry.movement)
-
-            Circle().fill(AchievementStyle.gradient(entry.topRarity)).frame(width: 38, height: 38)
-                .overlay(Text(entry.name.initials).font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(.black))
-
+            LeaderAvatar(name: entry.name, rarity: entry.topRarity, size: 38)
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.name)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(entry.isUser ? Theme.Colors.accent : Theme.Colors.textPrimary)
-                    .lineLimit(1)
-                Text("Lvl \(entry.level) · \(entry.topRarity.rawValue)")
-                    .font(.system(size: 11)).foregroundStyle(Theme.Colors.textTertiary)
+                Text(entry.name).dsCardTitle()
+                    .foregroundStyle(entry.isUser ? Theme.Colors.accent : Theme.Colors.textPrimary).lineLimit(1)
+                Text("Lvl \(entry.level) · \(entry.topRarity.rawValue)").dsCaption()
             }
             Spacer()
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(entry.ap)")
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.Colors.textPrimary)
-                Text("AP")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Theme.Colors.textTertiary)
+                Text("\(entry.ap)").dsNumeric(15)
+                Text("AP").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
             }
         }
         .padding(Theme.Spacing.md)
@@ -135,7 +135,6 @@ struct LeaderboardRow: View {
 // MARK: - Movement indicator (calm, static)
 struct MovementIndicator: View {
     let movement: Int
-
     var body: some View {
         Group {
             if movement > 0 {
@@ -143,14 +142,11 @@ struct MovementIndicator: View {
             } else if movement < 0 {
                 label("arrow.down", "\(-movement)", Theme.Colors.negative)
             } else {
-                Image(systemName: "minus")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.Colors.textTertiary)
+                Image(systemName: "minus").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
             }
         }
         .frame(width: 26)
     }
-
     private func label(_ icon: String, _ value: String, _ color: Color) -> some View {
         HStack(spacing: 1) {
             Image(systemName: icon).font(.system(size: 9, weight: .bold))

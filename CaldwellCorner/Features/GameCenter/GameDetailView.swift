@@ -15,10 +15,7 @@ struct GameDetailView: View {
                 ScrollView {
                     VStack(spacing: Theme.Spacing.lg) {
                         DetailScoreboard(game: game)
-                        Picker("", selection: $tab) {
-                            ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
+                        DSSegmented(items: Tab.allCases, title: { $0.rawValue }, selection: $tab)
 
                         switch tab {
                         case .summary: SummaryTab(game: game)
