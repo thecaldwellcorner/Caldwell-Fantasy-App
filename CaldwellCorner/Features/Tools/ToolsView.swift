@@ -16,6 +16,9 @@ struct ToolsView: View {
 
     private var sections: [(String, [ToolItem])] {
         [
+            ("Live", [
+                ToolItem(title: "Game Center", subtitle: "Live scores & stats", icon: "sportscourt.fill", tint: Theme.Colors.negative, premium: false, destination: AnyView(GameCenterView())),
+            ]),
             ("Analyze", [
                 ToolItem(title: "Trade Analyzer", subtitle: "Grade any deal", icon: "arrow.left.arrow.right", tint: Theme.Colors.info, premium: false, destination: AnyView(TradeAnalyzerView())),
                 ToolItem(title: "Start / Sit", subtitle: "Weekly lineup calls", icon: "checklist", tint: Theme.Colors.accentSecondary, premium: false, destination: AnyView(StartSitView())),

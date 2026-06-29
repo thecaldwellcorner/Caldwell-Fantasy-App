@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct CaldwellCornerApp: App {
     @StateObject private var state = AppState()
+    @StateObject private var gameCenter = GameCenterStore()
 
     init() {
         Self.configureAppearance()
@@ -12,6 +13,7 @@ struct CaldwellCornerApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(state)
+                .environmentObject(gameCenter)
                 .preferredColorScheme(.dark)
                 .tint(Theme.Colors.accent)
         }
