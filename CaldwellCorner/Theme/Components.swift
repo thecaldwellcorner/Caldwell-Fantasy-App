@@ -1,29 +1,26 @@
 import SwiftUI
 
 // MARK: - Interaction: press feedback
-/// Adds a subtle scale + dim on press (≈160ms) for a tactile, premium feel.
 struct PressableButtonStyle: ButtonStyle {
-    var scale: CGFloat = 0.97
+    var scale: CGFloat = 0.98
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? scale : 1)
-            .opacity(configuration.isPressed ? 0.92 : 1)
+            .opacity(configuration.isPressed ? 0.94 : 1)
             .animation(Theme.Anim.tap, value: configuration.isPressed)
     }
 }
 
 extension View {
-    /// Apply to Buttons / NavigationLinks for a tactile press animation.
-    func pressable(scale: CGFloat = 0.97) -> some View {
+    func pressable(scale: CGFloat = 0.98) -> some View {
         buttonStyle(PressableButtonStyle(scale: scale))
     }
 
-    /// Fade + slide-up entrance animation.
+    /// Subtle fade + slight rise on appear.
     func appear(delay: Double = 0) -> some View {
         modifier(AppearModifier(delay: delay))
     }
 
-    /// Shimmer sweep, used on redacted / loading placeholders.
     func shimmer() -> some View { modifier(ShimmerModifier()) }
 }
 
@@ -33,10 +30,8 @@ struct AppearModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 12)
-            .onAppear {
-                withAnimation(Theme.Anim.standard.delay(delay)) { shown = true }
-            }
+            .offset(y: shown ? 0 : 8)
+            .onAppear { withAnimation(Theme.Anim.standard.delay(delay)) { shown = true } }
     }
 }
 
@@ -45,16 +40,14 @@ struct ShimmerModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay(
             GeometryReader { geo in
-                LinearGradient(colors: [.clear, .white.opacity(0.12), .clear],
+                LinearGradient(colors: [.clear, .white.opacity(0.08), .clear],
                                startPoint: .leading, endPoint: .trailing)
-                    .frame(width: geo.size.width * 0.9)
+                    .frame(width: geo.size.width * 0.85)
                     .offset(x: x * geo.size.width)
                     .allowsHitTesting(false)
             }
         )
-        .onAppear {
-            withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) { x = 1.2 }
-        }
+        .onAppear { withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) { x = 1.2 } }
     }
 }
 
@@ -67,35 +60,53 @@ struct SkeletonView: View {
             .fill(Theme.Colors.surfaceElevated)
             .overlay(
                 GeometryReader { geo in
-                    LinearGradient(colors: [.clear, .white.opacity(0.10), .clear],
+                    LinearGradient(colors: [.clear, .white.opacity(0.07), .clear],
                                    startPoint: .leading, endPoint: .trailing)
                         .frame(width: geo.size.width * 0.8)
                         .offset(x: x * geo.size.width)
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .onAppear {
-                withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) { x = 1.2 }
-            }
+            .onAppear { withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) { x = 1.2 } }
     }
 }
 
-/// A card-shaped skeleton row used while content loads.
 struct SkeletonCard: View {
     var lines: Int = 3
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
-            SkeletonView(cornerRadius: 999).frame(width: 42, height: 42)
+            SkeletonView(cornerRadius: 999).frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(0..<lines, id: \.self) { i in
                     SkeletonView()
-                        .frame(height: 10)
+                        .frame(height: 9)
                         .frame(maxWidth: i == lines - 1 ? 120 : .infinity, alignment: .leading)
                 }
             }
             Spacer(minLength: 0)
         }
         .card(padding: Theme.Spacing.md)
+    }
+}
+
+// MARK: - Tag / pill (reusable)
+struct Tag: View {
+    let text: String
+    var color: Color = Theme.Colors.textSecondary
+    var filled: Bool = false
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(filled ? .black : color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                Group {
+                    if filled { color } else { color.opacity(0.14) }
+                }
+            )
+            .clipShape(Capsule())
     }
 }
 
@@ -106,16 +117,16 @@ struct PositionBadge: View {
 
     var body: some View {
         Text(position.uppercased())
-            .font(.system(size: compact ? 10 : 12, weight: .heavy, design: .rounded))
-            .foregroundStyle(.black)
-            .padding(.horizontal, compact ? 6 : 8)
-            .padding(.vertical, compact ? 2 : 4)
-            .background(Theme.Colors.position(position))
+            .font(.system(size: compact ? 10 : 11, weight: .bold))
+            .foregroundStyle(Theme.Colors.position(position))
+            .padding(.horizontal, compact ? 6 : 7)
+            .padding(.vertical, compact ? 2 : 3)
+            .background(Theme.Colors.position(position).opacity(0.16))
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
-// MARK: - Player avatar (initials, position tinted)
+// MARK: - Player avatar (initials, position-tinted ring)
 struct PlayerAvatar: View {
     let name: String
     let position: String
@@ -123,32 +134,27 @@ struct PlayerAvatar: View {
 
     var body: some View {
         Text(name.initials)
-            .font(.system(size: size * 0.36, weight: .bold, design: .rounded))
+            .font(.system(size: size * 0.34, weight: .bold))
             .foregroundStyle(Theme.Colors.textPrimary)
             .frame(width: size, height: size)
-            .background(
-                LinearGradient(
-                    colors: [Theme.Colors.position(position).opacity(0.65),
-                             Theme.Colors.surfaceElevated],
-                    startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
+            .background(Theme.Colors.surfaceElevated)
             .clipShape(Circle())
-            .overlay(Circle().strokeBorder(Theme.Colors.position(position).opacity(0.7), lineWidth: 1.5))
+            .overlay(Circle().strokeBorder(Theme.Colors.position(position).opacity(0.6), lineWidth: 1.5))
     }
 }
 
-// MARK: - Premium lock pill
+// MARK: - Premium pill
 struct PremiumBadge: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: "crown.fill")
             Text("PRO")
         }
-        .font(.system(size: 10, weight: .heavy, design: .rounded))
-        .foregroundStyle(.black)
+        .font(.system(size: 10, weight: .bold))
+        .foregroundStyle(Theme.Colors.accentSecondary)
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
-        .background(Theme.Gradient.gold)
+        .background(Theme.Colors.accentSecondary.opacity(0.16))
         .clipShape(Capsule())
     }
 }
@@ -164,11 +170,11 @@ struct SectionHeader: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.Colors.textPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 13))
+                        .font(.system(size: 12))
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
             }
@@ -176,7 +182,7 @@ struct SectionHeader: View {
             if let actionLabel, let action {
                 Button(action: action) {
                     Text(actionLabel)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.Colors.accent)
                 }
                 .pressable()
@@ -192,7 +198,7 @@ struct MetricChip: View {
     var tint: Color = Theme.Colors.textPrimary
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 3) {
             Text(value)
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(tint)
@@ -201,17 +207,15 @@ struct MetricChip: View {
                 .foregroundStyle(Theme.Colors.textTertiary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Theme.Spacing.sm)
-        .background(
-            LinearGradient(colors: [Theme.Colors.surfaceHighlight.opacity(0.6), Theme.Colors.surfaceElevated],
-                           startPoint: .top, endPoint: .bottom))
+        .padding(.vertical, Theme.Spacing.md)
+        .background(Theme.Colors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous)
             .strokeBorder(Theme.Colors.strokeSoft, lineWidth: 1))
     }
 }
 
-// MARK: - Primary button
+// MARK: - Primary button (solid, consistent)
 struct PrimaryButton: View {
     let title: String
     var systemImage: String? = nil
@@ -223,64 +227,59 @@ struct PrimaryButton: View {
                 if let systemImage { Image(systemName: systemImage) }
                 Text(title)
             }
-            .font(.system(size: 16, weight: .bold, design: .rounded))
+            .font(.system(size: 16, weight: .semibold))
             .foregroundStyle(.black)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
-            .background(Theme.Gradient.accent)
+            .background(Theme.Colors.accent)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
-            .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 12, y: 6)
         }
-        .pressable(scale: 0.98)
+        .pressable()
     }
 }
 
-// MARK: - Grade ring
+// MARK: - Grade ring (static, calm)
 struct GradeRing: View {
     let score: Double      // 0...100
     var size: CGFloat = 64
     var label: String? = nil
-    @State private var animated = false
 
     var body: some View {
         ZStack {
+            Circle().stroke(Theme.Colors.stroke, lineWidth: 5)
             Circle()
-                .stroke(Theme.Colors.stroke, lineWidth: 6)
-            Circle()
-                .trim(from: 0, to: animated ? max(0.02, score / 100) : 0)
-                .stroke(Theme.Colors.grade(score),
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .trim(from: 0, to: max(0.02, score / 100))
+                .stroke(Theme.Colors.grade(score), style: StrokeStyle(lineWidth: 5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 0) {
                 Text("\(Int(score))")
-                    .font(.system(size: size * 0.34, weight: .heavy, design: .rounded))
+                    .font(.system(size: size * 0.32, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.Colors.textPrimary)
                 if let label {
                     Text(label)
-                        .font(.system(size: size * 0.14, weight: .semibold))
+                        .font(.system(size: size * 0.13, weight: .semibold))
                         .foregroundStyle(Theme.Colors.textTertiary)
                 }
             }
         }
         .frame(width: size, height: size)
-        .onAppear { withAnimation(Theme.Anim.spring.delay(0.05)) { animated = true } }
     }
 }
 
 // MARK: - Trend arrow
 struct TrendIndicator: View {
-    let value: Double  // positive = up
+    let value: Double
     var body: some View {
         HStack(spacing: 2) {
             Image(systemName: value >= 0 ? "arrow.up.right" : "arrow.down.right")
             Text(String(format: "%.0f", abs(value)))
         }
-        .font(.system(size: 12, weight: .bold, design: .rounded))
+        .font(.system(size: 12, weight: .semibold, design: .rounded))
         .foregroundStyle(value >= 0 ? Theme.Colors.positive : Theme.Colors.negative)
     }
 }
 
-// MARK: - Empty / Pro gating overlay card
+// MARK: - Pro gating card
 struct ProGateCard: View {
     let feature: String
     var onUpgrade: () -> Void
@@ -288,10 +287,10 @@ struct ProGateCard: View {
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {
             Image(systemName: "crown.fill")
-                .font(.system(size: 32))
+                .font(.system(size: 28))
                 .foregroundStyle(Theme.Colors.accentSecondary)
             Text("\(feature) is a Premium feature")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .multilineTextAlignment(.center)
             Text("Unlock unlimited AI, advanced projections, dynasty tools, the Draft Guide and more.")
