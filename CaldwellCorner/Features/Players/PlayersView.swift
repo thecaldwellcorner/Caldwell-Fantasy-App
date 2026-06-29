@@ -28,6 +28,7 @@ struct PlayerDatabaseView: View {
     @State private var search = ""
     @State private var positionFilter: Position?
     @State private var sort: SortOption = .overall
+    @State private var loaded = false
 
     enum SortOption: String, CaseIterable {
         case overall = "Overall", projection = "Proj", dynasty = "Dynasty", trend = "Trend"
@@ -93,14 +94,24 @@ struct PlayerDatabaseView: View {
 
             ScrollView {
                 LazyVStack(spacing: Theme.Spacing.sm) {
-                    ForEach(filtered) { p in
-                        NavigationLink { PlayerDetailView(player: p) } label: {
-                            PlayerRow(player: p, sort: sort)
+                    if loaded {
+                        ForEach(filtered) { p in
+                            NavigationLink { PlayerDetailView(player: p) } label: {
+                                PlayerRow(player: p, sort: sort)
+                            }
                         }
+                    } else {
+                        ForEach(0..<8, id: \.self) { _ in SkeletonCard(lines: 2) }
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
                 .padding(.bottom, Theme.Spacing.xl)
+            }
+        }
+        .onAppear {
+            guard !loaded else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                withAnimation(Theme.Anim.quick) { loaded = true }
             }
         }
     }

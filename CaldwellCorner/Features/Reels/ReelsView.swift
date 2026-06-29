@@ -3,6 +3,7 @@ import SwiftUI
 struct ReelsView: View {
     @EnvironmentObject var state: AppState
     @State private var topicFilter: ReelTopic?
+    @State private var loaded = false
 
     private func reels(_ section: ReelSection) -> [ReelPost] {
         let base = state.reels(in: section)
@@ -14,20 +15,29 @@ struct ReelsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                 intro
-                topicFilters
-
-                ForEach(ReelSection.allCases) { section in
-                    let items = reels(section)
-                    if !items.isEmpty {
-                        if section == .trendingClips {
-                            trendingGrid(section: section, items: items)
-                        } else {
-                            shelf(section: section, items: items)
+                if loaded {
+                    topicFilters
+                    ForEach(ReelSection.allCases) { section in
+                        let items = reels(section)
+                        if !items.isEmpty {
+                            if section == .trendingClips {
+                                trendingGrid(section: section, items: items)
+                            } else {
+                                shelf(section: section, items: items)
+                            }
                         }
                     }
+                } else {
+                    reelsSkeleton
                 }
             }
             .padding(.vertical, Theme.Spacing.lg)
+        }
+        .onAppear {
+            guard !loaded else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                withAnimation(Theme.Anim.quick) { loaded = true }
+            }
         }
         .screenBackground()
         .navigationTitle("Reels")
@@ -64,6 +74,26 @@ struct ReelsView: View {
                 }
             }
             .padding(.horizontal, Theme.Spacing.lg)
+        }
+    }
+
+    private var reelsSkeleton: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            ForEach(0..<2, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                    SkeletonView().frame(width: 170, height: 18)
+                        .padding(.horizontal, Theme.Spacing.lg)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Theme.Spacing.md) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                SkeletonView(cornerRadius: Theme.Radius.card)
+                                    .frame(width: 230, height: 360)
+                            }
+                        }
+                        .padding(.horizontal, Theme.Spacing.lg)
+                    }
+                }
+            }
         }
     }
 
@@ -317,10 +347,7 @@ struct CreatorAvatar: View {
     let creator: ContentCreator?
     var size: CGFloat = 28
 
-    private var initials: String {
-        (creator?.name ?? "?").split(separator: " ").compactMap { $0.first }
-            .map(String.init).prefix(2).joined().uppercased()
-    }
+    private var initials: String { (creator?.name ?? "?").initials }
     private var tint: Color {
         creator?.isCaldwell == true ? Theme.Colors.accent : Theme.Colors.info
     }

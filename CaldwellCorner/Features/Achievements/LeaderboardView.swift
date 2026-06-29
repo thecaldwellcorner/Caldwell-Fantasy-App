@@ -71,7 +71,7 @@ struct Podium: View {
         return VStack(spacing: 6) {
             ZStack(alignment: .bottomTrailing) {
                 Circle().fill(AchievementStyle.gradient(e.topRarity)).frame(width: 52, height: 52)
-                    .overlay(Text(initials(e.name)).font(.system(size: 18, weight: .heavy, design: .rounded)).foregroundStyle(.black))
+                    .overlay(Text(e.name.initials).font(.system(size: 18, weight: .heavy, design: .rounded)).foregroundStyle(.black))
                 Image(systemName: "crown.fill")
                     .font(.system(size: 12)).foregroundStyle(.black)
                     .padding(4).background(medal).clipShape(Circle())
@@ -87,10 +87,6 @@ struct Podium: View {
                 .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.Colors.stroke, lineWidth: 1))
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func initials(_ name: String) -> String {
-        name.split(separator: " ").compactMap { $0.first }.map(String.init).prefix(2).joined().uppercased()
     }
 }
 
@@ -108,7 +104,7 @@ struct LeaderboardRow: View {
             MovementIndicator(movement: entry.movement)
 
             Circle().fill(AchievementStyle.gradient(entry.topRarity)).frame(width: 38, height: 38)
-                .overlay(Text(initials).font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(.black))
+                .overlay(Text(entry.name.initials).font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(.black))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.name)
@@ -133,10 +129,6 @@ struct LeaderboardRow: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
             .strokeBorder(entry.isUser ? Theme.Colors.accent.opacity(0.5) : Theme.Colors.stroke, lineWidth: 1))
-    }
-
-    private var initials: String {
-        entry.name.split(separator: " ").compactMap { $0.first }.map(String.init).prefix(2).joined().uppercased()
     }
 }
 

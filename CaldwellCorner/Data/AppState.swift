@@ -17,7 +17,9 @@ final class AppState: ObservableObject {
     @Published var rookies: [RookieProspect] = MockData.buildRookies()
     @Published var pickValues: [DraftPickValue] = MockData.buildPickValues()
     @Published var premiumContent: [PremiumContent] = MockData.buildPremiumContent()
-    @Published var achievements: [Achievement] = MockAchievements.all
+    @Published var achievements: [Achievement] = MockAchievements.all {
+        didSet { rebuildAchievementCaches() }
+    }
     @Published var achievementActivity: [AchievementActivity] = MockAchievements.activity
     @Published var plans: [PlanOption] = MockData.buildPlans()
 
@@ -28,6 +30,10 @@ final class AppState: ObservableObject {
 
     // Advanced analytics metrics (engine + AI assistant grounding)
     @Published var playerMetrics: [PlayerMetrics] = MockMetrics.all
+
+    // Cached derived data (recomputed only when achievements change)
+    private var progressionCache = Progression.summary(for: [])
+    private var leaderboardCache: [LeaderboardScope: [LeaderboardEntry]] = [:]
 
     // User
     @Published var profile: UserProfile = MockData.buildProfile()
@@ -42,6 +48,12 @@ final class AppState: ObservableObject {
 
     init() {
         selectedLeagueID = leagues.first?.id
+        rebuildAchievementCaches()
+    }
+
+    private func rebuildAchievementCaches() {
+        progressionCache = Progression.summary(for: achievements)
+        leaderboardCache.removeAll()
     }
 
     // MARK: - Derived
@@ -95,15 +107,18 @@ final class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Achievements / progression
-    var progression: Progression.Summary { Progression.summary(for: achievements) }
+    // MARK: - Achievements / progression (cached)
+    var progression: Progression.Summary { progressionCache }
 
     func achievements(in category: AchievementCategory) -> [Achievement] {
         achievements.filter { $0.category == category }
     }
 
     func leaderboard(_ scope: LeaderboardScope) -> [LeaderboardEntry] {
-        MockAchievements.leaderboard(scope, userAP: progression.totalAP)
+        if let cached = leaderboardCache[scope] { return cached }
+        let entries = MockAchievements.leaderboard(scope, userAP: progressionCache.totalAP)
+        leaderboardCache[scope] = entries
+        return entries
     }
 
     func metricsForWaiverPool(limit: Int = 12) -> [PlayerMetrics] {

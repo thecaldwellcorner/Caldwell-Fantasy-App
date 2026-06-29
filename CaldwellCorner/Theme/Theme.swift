@@ -150,9 +150,12 @@ struct CardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
                     .strokeBorder(Theme.Gradient.hairline, lineWidth: 1)
             )
-            .shadow(color: Theme.Shadow.cardColor,
-                    radius: elevated ? Theme.Shadow.cardRadius + 6 : Theme.Shadow.cardRadius,
-                    x: 0, y: elevated ? Theme.Shadow.cardY + 4 : Theme.Shadow.cardY)
+            // Shadows are an offscreen-render cost; only elevated (hero) cards pay it,
+            // keeping long list/grid scrolling smooth. Row cards rely on the gradient
+            // fill + hairline stroke for separation.
+            .shadow(color: elevated ? Theme.Shadow.cardColor : .clear,
+                    radius: elevated ? Theme.Shadow.cardRadius : 0,
+                    x: 0, y: elevated ? Theme.Shadow.cardY : 0)
     }
 }
 

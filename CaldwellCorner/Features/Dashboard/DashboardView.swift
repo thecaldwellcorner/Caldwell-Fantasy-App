@@ -122,7 +122,7 @@ struct DashboardView: View {
                 .foregroundStyle(Theme.Colors.accent)
             }
         }
-        .card()
+        .card(elevated: true)
     }
 
     private var liveStrip: some View {
@@ -310,13 +310,3 @@ struct NewsRow: View {
     }
 }
 
-extension Date {
-    var relativeShort: String {
-        let interval = Date().timeIntervalSince(self)
-        let minutes = Int(interval / 60)
-        if minutes < 60 { return "\(max(1, minutes))m ago" }
-        let hours = minutes / 60
-        if hours < 24 { return "\(hours)h ago" }
-        return "\(hours / 24)d ago"
-    }
-}
