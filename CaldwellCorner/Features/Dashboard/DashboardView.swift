@@ -3,25 +3,24 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject var state: AppState
     @Binding var showPaywall: Bool
+    @State private var isLoading = true
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                header
-
-                if let league = state.selectedLeague, let team = league.userTeam {
-                    teamSummary(league: league, team: team)
+                if isLoading {
+                    loadingState
+                } else {
+                    content
                 }
-
-                quickActions
-
-                breakingNews
-
-                trendingPlayers
-
-                if !state.isPremium { upsell }
             }
             .padding(Theme.Spacing.lg)
+        }
+        .onAppear {
+            guard isLoading else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                withAnimation(Theme.Anim.standard) { isLoading = false }
+            }
         }
         .screenBackground()
         .navigationTitle("Caldwell Corner")
@@ -39,6 +38,36 @@ struct DashboardView: View {
                         .foregroundStyle(Theme.Colors.textPrimary)
                 }
             }
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            header.appear(delay: 0.0)
+
+            if let league = state.selectedLeague, let team = league.userTeam {
+                teamSummary(league: league, team: team).appear(delay: 0.05)
+            }
+
+            quickActions.appear(delay: 0.10)
+            breakingNews.appear(delay: 0.15)
+            trendingPlayers.appear(delay: 0.20)
+
+            if !state.isPremium { upsell.appear(delay: 0.25) }
+        }
+    }
+
+    private var loadingState: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+            SkeletonView().frame(width: 220, height: 26)
+            SkeletonView(cornerRadius: Theme.Radius.card).frame(height: 150)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Spacing.md) {
+                ForEach(0..<4, id: \.self) { _ in
+                    SkeletonView(cornerRadius: Theme.Radius.card).frame(height: 92)
+                }
+            }
+            SkeletonCard()
+            SkeletonCard()
         }
     }
 
