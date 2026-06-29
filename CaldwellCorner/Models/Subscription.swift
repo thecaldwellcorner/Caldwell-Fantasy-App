@@ -15,14 +15,6 @@ struct PlanOption: Identifiable, Hashable {
     var isFeatured: Bool
 }
 
-struct Achievement: Identifiable, Hashable {
-    let id = UUID()
-    var title: String
-    var detail: String
-    var systemImage: String
-    var unlocked: Bool
-}
-
 struct UserProfile: Codable, Hashable {
     var displayName: String
     var handle: String

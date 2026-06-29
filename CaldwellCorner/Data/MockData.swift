@@ -202,17 +202,6 @@ enum MockData {
         ]
     }
 
-    static func buildAchievements() -> [Achievement] {
-        [
-            Achievement(title: "League Champion", detail: "Won a league title", systemImage: "trophy.fill", unlocked: true),
-            Achievement(title: "Trade Shark", detail: "Completed 25 trades", systemImage: "arrow.left.arrow.right.circle.fill", unlocked: true),
-            Achievement(title: "Waiver Wizard", detail: "Hit on 10 waiver claims", systemImage: "wand.and.stars", unlocked: true),
-            Achievement(title: "Draft Day Hero", detail: "Drafted 3 league-winners", systemImage: "star.circle.fill", unlocked: false),
-            Achievement(title: "Dynasty Architect", detail: "Build a top dynasty roster", systemImage: "building.columns.fill", unlocked: false),
-            Achievement(title: "Perfect Lineup", detail: "Set an optimal lineup", systemImage: "checkmark.seal.fill", unlocked: false),
-        ]
-    }
-
     static func suggestedPrompts() -> [SuggestedPrompt] {
         [
             .init(text: "Should I trade Garrett Wilson for Drake London?", systemImage: "arrow.left.arrow.right"),
