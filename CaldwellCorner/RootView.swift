@@ -29,8 +29,11 @@ struct RootView: View {
                 .tabItem { Label("Tools", systemImage: "square.grid.2x2.fill") }
                 .tag(Tab.tools)
         }
+        .buttonStyle(PressableButtonStyle())
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }

@@ -1,5 +1,104 @@
 import SwiftUI
 
+// MARK: - Interaction: press feedback
+/// Adds a subtle scale + dim on press (≈160ms) for a tactile, premium feel.
+struct PressableButtonStyle: ButtonStyle {
+    var scale: CGFloat = 0.97
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .animation(Theme.Anim.tap, value: configuration.isPressed)
+    }
+}
+
+extension View {
+    /// Apply to Buttons / NavigationLinks for a tactile press animation.
+    func pressable(scale: CGFloat = 0.97) -> some View {
+        buttonStyle(PressableButtonStyle(scale: scale))
+    }
+
+    /// Fade + slide-up entrance animation.
+    func appear(delay: Double = 0) -> some View {
+        modifier(AppearModifier(delay: delay))
+    }
+
+    /// Shimmer sweep, used on redacted / loading placeholders.
+    func shimmer() -> some View { modifier(ShimmerModifier()) }
+}
+
+struct AppearModifier: ViewModifier {
+    @State private var shown = false
+    var delay: Double
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 12)
+            .onAppear {
+                withAnimation(Theme.Anim.standard.delay(delay)) { shown = true }
+            }
+    }
+}
+
+struct ShimmerModifier: ViewModifier {
+    @State private var x: CGFloat = -1
+    func body(content: Content) -> some View {
+        content.overlay(
+            GeometryReader { geo in
+                LinearGradient(colors: [.clear, .white.opacity(0.12), .clear],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(width: geo.size.width * 0.9)
+                    .offset(x: x * geo.size.width)
+                    .allowsHitTesting(false)
+            }
+        )
+        .onAppear {
+            withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) { x = 1.2 }
+        }
+    }
+}
+
+// MARK: - Loading skeleton
+struct SkeletonView: View {
+    var cornerRadius: CGFloat = Theme.Radius.sm
+    @State private var x: CGFloat = -1
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Theme.Colors.surfaceElevated)
+            .overlay(
+                GeometryReader { geo in
+                    LinearGradient(colors: [.clear, .white.opacity(0.10), .clear],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: geo.size.width * 0.8)
+                        .offset(x: x * geo.size.width)
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .onAppear {
+                withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) { x = 1.2 }
+            }
+    }
+}
+
+/// A card-shaped skeleton row used while content loads.
+struct SkeletonCard: View {
+    var lines: Int = 3
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            SkeletonView(cornerRadius: 999).frame(width: 42, height: 42)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(0..<lines, id: \.self) { i in
+                    SkeletonView()
+                        .frame(height: 10)
+                        .frame(maxWidth: i == lines - 1 ? 120 : .infinity, alignment: .leading)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .card(padding: Theme.Spacing.md)
+    }
+}
+
 // MARK: - Position badge
 struct PositionBadge: View {
     let position: String
@@ -36,12 +135,12 @@ struct PlayerAvatar: View {
             .frame(width: size, height: size)
             .background(
                 LinearGradient(
-                    colors: [Theme.Colors.position(position).opacity(0.6),
+                    colors: [Theme.Colors.position(position).opacity(0.65),
                              Theme.Colors.surfaceElevated],
                     startPoint: .topLeading, endPoint: .bottomTrailing)
             )
             .clipShape(Circle())
-            .overlay(Circle().stroke(Theme.Colors.position(position).opacity(0.7), lineWidth: 1.5))
+            .overlay(Circle().strokeBorder(Theme.Colors.position(position).opacity(0.7), lineWidth: 1.5))
     }
 }
 
@@ -56,7 +155,7 @@ struct PremiumBadge: View {
         .foregroundStyle(.black)
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
-        .background(Theme.Colors.accentSecondary)
+        .background(Theme.Gradient.gold)
         .clipShape(Capsule())
     }
 }
@@ -82,9 +181,12 @@ struct SectionHeader: View {
             }
             Spacer()
             if let actionLabel, let action {
-                Button(actionLabel, action: action)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.Colors.accent)
+                Button(action: action) {
+                    Text(actionLabel)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.Colors.accent)
+                }
+                .pressable()
             }
         }
     }
@@ -107,8 +209,12 @@ struct MetricChip: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Theme.Spacing.sm)
-        .background(Theme.Colors.surfaceElevated)
+        .background(
+            LinearGradient(colors: [Theme.Colors.surfaceHighlight.opacity(0.6), Theme.Colors.surfaceElevated],
+                           startPoint: .top, endPoint: .bottom))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous)
+            .strokeBorder(Theme.Colors.strokeSoft, lineWidth: 1))
     }
 }
 
@@ -127,10 +233,12 @@ struct PrimaryButton: View {
             .font(.system(size: 16, weight: .bold, design: .rounded))
             .foregroundStyle(.black)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Theme.Colors.accent)
+            .padding(.vertical, 15)
+            .background(Theme.Gradient.accent)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+            .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 12, y: 6)
         }
+        .pressable(scale: 0.98)
     }
 }
 
@@ -139,13 +247,14 @@ struct GradeRing: View {
     let score: Double      // 0...100
     var size: CGFloat = 64
     var label: String? = nil
+    @State private var animated = false
 
     var body: some View {
         ZStack {
             Circle()
                 .stroke(Theme.Colors.stroke, lineWidth: 6)
             Circle()
-                .trim(from: 0, to: max(0.02, score / 100))
+                .trim(from: 0, to: animated ? max(0.02, score / 100) : 0)
                 .stroke(Theme.Colors.grade(score),
                         style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
@@ -161,6 +270,7 @@ struct GradeRing: View {
             }
         }
         .frame(width: size, height: size)
+        .onAppear { withAnimation(Theme.Anim.spring.delay(0.05)) { animated = true } }
     }
 }
 
