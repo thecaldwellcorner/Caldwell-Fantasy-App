@@ -79,7 +79,7 @@ struct DashboardView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Welcome back, \(state.profile.displayName)")
-                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(Theme.Colors.textPrimary)
             Text("Your fantasy football operating system")
                 .font(.system(size: 14))
@@ -193,24 +193,23 @@ struct DashboardView: View {
         Button { showPaywall = true } label: {
             HStack(spacing: Theme.Spacing.md) {
                 Image(systemName: "crown.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(.black)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.Colors.accentSecondary)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.Colors.accentSecondary.opacity(0.14))
+                    .clipShape(Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Go Premium")
-                        .font(.system(size: 17, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.black)
-                    Text("Unlimited AI, dynasty tools, draft guide & no ads")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.black.opacity(0.7))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                    Text("Unlimited AI, dynasty tools & no ads")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.Colors.textSecondary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(.black)
+                Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Theme.Colors.textTertiary)
             }
-            .padding(Theme.Spacing.lg)
-            .background(
-                LinearGradient(colors: [Theme.Colors.accent, Theme.Colors.accentSecondary],
-                               startPoint: .leading, endPoint: .trailing))
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+            .card(padding: Theme.Spacing.md)
         }
     }
 }

@@ -132,10 +132,9 @@ struct LeaderboardRow: View {
     }
 }
 
-// MARK: - Animated movement arrow
+// MARK: - Movement indicator (calm, static)
 struct MovementIndicator: View {
     let movement: Int
-    @State private var bounce = false
 
     var body: some View {
         Group {
@@ -145,23 +144,18 @@ struct MovementIndicator: View {
                 label("arrow.down", "\(-movement)", Theme.Colors.negative)
             } else {
                 Image(systemName: "minus")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Theme.Colors.textTertiary)
             }
         }
-        .frame(width: 28)
-        .onAppear {
-            guard movement != 0 else { return }
-            withAnimation(Theme.Anim.snappy.repeatCount(2, autoreverses: true)) { bounce = true }
-        }
+        .frame(width: 26)
     }
 
     private func label(_ icon: String, _ value: String, _ color: Color) -> some View {
         HStack(spacing: 1) {
-            Image(systemName: icon).font(.system(size: 9, weight: .heavy))
-            Text(value).font(.system(size: 10, weight: .heavy, design: .rounded))
+            Image(systemName: icon).font(.system(size: 9, weight: .bold))
+            Text(value).font(.system(size: 10, weight: .bold, design: .rounded))
         }
         .foregroundStyle(color)
-        .offset(y: bounce ? (movement > 0 ? -2 : 2) : 0)
     }
 }

@@ -24,9 +24,10 @@ struct ProfileView: View {
         VStack(spacing: Theme.Spacing.sm) {
             ZStack(alignment: .bottomTrailing) {
                 Circle()
-                    .fill(LinearGradient(colors: [Theme.Colors.accent, Theme.Colors.info], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(Theme.Colors.surfaceElevated)
                     .frame(width: 84, height: 84)
-                    .overlay(Text(initials).font(.system(size: 32, weight: .heavy, design: .rounded)).foregroundStyle(.black))
+                    .overlay(Circle().strokeBorder(Theme.Colors.accent.opacity(0.6), lineWidth: 2))
+                    .overlay(Text(initials).font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.Colors.textPrimary))
                 if state.isPremium {
                     Image(systemName: "crown.fill")
                         .font(.system(size: 14)).foregroundStyle(.black)
@@ -58,17 +59,16 @@ struct ProfileView: View {
             } else {
                 Button { showPaywall = true } label: {
                     HStack(spacing: Theme.Spacing.md) {
-                        Image(systemName: "crown.fill").font(.system(size: 26)).foregroundStyle(.black)
+                        Image(systemName: "crown.fill").font(.system(size: 20)).foregroundStyle(Theme.Colors.accentSecondary)
+                            .frame(width: 40, height: 40).background(Theme.Colors.accentSecondary.opacity(0.14)).clipShape(Circle())
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Upgrade to Premium").font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(.black)
-                            Text("Unlimited AI · Dynasty tools · Draft Guide").font(.system(size: 12, weight: .medium)).foregroundStyle(.black.opacity(0.75))
+                            Text("Upgrade to Premium").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
+                            Text("Unlimited AI · Dynasty tools · Draft Guide").font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)
                         }
                         Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(.black)
+                        Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Theme.Colors.textTertiary)
                     }
-                    .padding(Theme.Spacing.lg)
-                    .background(LinearGradient(colors: [Theme.Colors.accent, Theme.Colors.accentSecondary], startPoint: .leading, endPoint: .trailing))
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+                    .card(padding: Theme.Spacing.md)
                 }
             }
         }
@@ -152,8 +152,8 @@ struct ProfileView: View {
             NavigationLink { LeaderboardView() } label: {
                 HStack(spacing: Theme.Spacing.md) {
                     Image(systemName: "chart.bar.fill")
-                        .font(.system(size: 18)).foregroundStyle(.black)
-                        .frame(width: 38, height: 38).background(Theme.Gradient.gold).clipShape(Circle())
+                        .font(.system(size: 16)).foregroundStyle(Theme.Colors.accentSecondary)
+                        .frame(width: 38, height: 38).background(Theme.Colors.accentSecondary.opacity(0.14)).clipShape(Circle())
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Leaderboards").font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
                         Text(globalRank.map { "You're #\($0) globally" } ?? "See where you rank").font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)

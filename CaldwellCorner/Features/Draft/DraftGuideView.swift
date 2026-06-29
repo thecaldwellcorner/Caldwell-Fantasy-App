@@ -26,22 +26,21 @@ struct DraftGuideView: View {
     private var banner: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             Text("THE CALDWELL CORNER")
-                .font(.system(size: 11, weight: .heavy)).foregroundStyle(.black.opacity(0.7))
+                .font(.system(size: 11, weight: .bold)).foregroundStyle(Theme.Colors.accentSecondary)
             Text("2025 Draft Guide")
-                .font(.system(size: 26, weight: .heavy, design: .rounded)).foregroundStyle(.black)
-            Text("Player profiles · sleepers · busts · tiers · auction values. Download the printable PDF or read interactively.")
-                .font(.system(size: 13, weight: .medium)).foregroundStyle(.black.opacity(0.75))
+                .font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.Colors.textPrimary)
+            Text("Player profiles, sleepers, busts, tiers and auction values — read interactively or download the PDF.")
+                .font(.system(size: 13)).foregroundStyle(Theme.Colors.textSecondary)
             HStack {
                 Label("Download PDF", systemImage: "arrow.down.doc.fill")
-                    .font(.system(size: 13, weight: .bold)).foregroundStyle(.black)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.Colors.accent)
                     .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(.black.opacity(0.12)).clipShape(Capsule())
+                    .background(Theme.Colors.accent.opacity(0.14)).clipShape(Capsule())
             }
+            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.Spacing.lg)
-        .background(LinearGradient(colors: [Theme.Colors.accentSecondary, Theme.Colors.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+        .card()
     }
 }
 
@@ -84,7 +83,7 @@ struct DraftGuideArticleView: View {
                 Text(article.category.uppercased())
                     .font(.system(size: 11, weight: .heavy)).foregroundStyle(Theme.Colors.accent)
                 Text(article.title)
-                    .font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
+                    .font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.Colors.textPrimary)
                 Text("\(article.author) · \(article.readMinutes) min read")
                     .font(.system(size: 12)).foregroundStyle(Theme.Colors.textTertiary)
                 Divider().overlay(Theme.Colors.stroke)

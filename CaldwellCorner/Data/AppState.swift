@@ -27,6 +27,7 @@ final class AppState: ObservableObject {
     @Published var creators: [ContentCreator] = MockReels.creators
     @Published var reels: [ReelPost] = MockReels.reels
     @Published var savedReels: Set<UUID> = []
+    @Published var likedReels: Set<UUID> = []
 
     // Advanced analytics metrics (engine + AI assistant grounding)
     @Published var playerMetrics: [PlayerMetrics] = MockMetrics.all
@@ -90,6 +91,10 @@ final class AppState: ObservableObject {
 
     func toggleSavedReel(_ id: UUID) {
         if savedReels.contains(id) { savedReels.remove(id) } else { savedReels.insert(id) }
+    }
+
+    func toggleLikedReel(_ id: UUID) {
+        if likedReels.contains(id) { likedReels.remove(id) } else { likedReels.insert(id) }
     }
 
     var savedReelPosts: [ReelPost] { reels.filter { savedReels.contains($0.id) } }

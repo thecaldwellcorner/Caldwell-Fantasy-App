@@ -22,7 +22,7 @@ struct PaywallView: View {
                     Image(systemName: "crown.fill")
                         .font(.system(size: 44)).foregroundStyle(Theme.Colors.accentSecondary)
                     Text("Caldwell Corner Premium")
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(Theme.Colors.textPrimary)
                         .multilineTextAlignment(.center)
                     Text("The ultimate fantasy football operating system")
