@@ -48,14 +48,13 @@ struct LeagueDashboardView: View {
                 HStack(spacing: Theme.Spacing.sm) {
                     MetricChip(label: "Record", value: "\(team.wins)-\(team.losses)")
                     MetricChip(label: "Power", value: "\(Int(team.powerScore))", tint: Theme.Colors.grade(team.powerScore))
-                    MetricChip(label: "Dynasty", value: "\(Int(team.dynastyValue))", tint: Theme.Colors.info)
+                    MetricChip(label: "Dynasty", value: "\(Int(team.dynastyValue))")
                 }
                 let grouped = Dictionary(grouping: state.rosterPlayers(for: team), by: { slotGroup($0.slot) })
                 ForEach(["Starters", "Bench", "Taxi", "IR"], id: \.self) { group in
                     if let items = grouped[group], !items.isEmpty {
                         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                            Text(group.uppercased())
-                                .font(.system(size: 12, weight: .heavy)).foregroundStyle(Theme.Colors.textTertiary)
+                            DSEyebrow(text: group)
                             ForEach(items, id: \.player.id) { entry in
                                 NavigationLink { PlayerDetailView(player: entry.player) } label: {
                                     rosterRow(slot: entry.slot, player: entry.player)
@@ -67,7 +66,7 @@ struct LeagueDashboardView: View {
                 }
                 if !team.futurePicks.isEmpty {
                     VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                        Text("FUTURE PICKS").font(.system(size: 12, weight: .heavy)).foregroundStyle(Theme.Colors.textTertiary)
+                        DSEyebrow(text: "Future Picks")
                         FlowChips(items: team.futurePicks)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -88,19 +87,18 @@ struct LeagueDashboardView: View {
     private func rosterRow(slot: String, player: Player) -> some View {
         HStack(spacing: Theme.Spacing.md) {
             Text(slot)
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .frame(width: 44, height: 24)
                 .background(Theme.Colors.surfaceElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             PlayerAvatar(name: player.name, position: player.position.rawValue, size: 34)
             VStack(alignment: .leading, spacing: 2) {
-                Text(player.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
-                Text("\(player.position.rawValue) · \(player.team)").font(.system(size: 11)).foregroundStyle(Theme.Colors.textSecondary)
+                Text(player.name).dsCardTitle().lineLimit(1)
+                Text("\(player.position.rawValue) · \(player.team)").dsCaption()
             }
             Spacer()
-            Text(String(format: "%.1f", player.projWeekly))
-                .font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.accent)
+            Text(String(format: "%.1f", player.projWeekly)).dsNumeric(14, color: Theme.Colors.accent)
         }
         .card(padding: Theme.Spacing.md)
     }
@@ -109,17 +107,17 @@ struct LeagueDashboardView: View {
         VStack(spacing: Theme.Spacing.sm) {
             ForEach(Array(league.standings.enumerated()), id: \.element.id) { index, team in
                 HStack(spacing: Theme.Spacing.md) {
-                    Text("\(index + 1)").font(.system(size: 15, weight: .heavy, design: .rounded))
-                        .foregroundStyle(index < league.teamCount / 2 ? Theme.Colors.accent : Theme.Colors.textTertiary)
+                    Text("\(index + 1)")
+                        .dsNumeric(15, color: index < league.teamCount / 2 ? Theme.Colors.accent : Theme.Colors.textTertiary)
                         .frame(width: 24)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(team.name).font(.system(size: 14, weight: .bold, design: .rounded))
+                        Text(team.name).dsCardTitle()
                             .foregroundStyle(team.isUser ? Theme.Colors.accent : Theme.Colors.textPrimary)
-                        Text(team.ownerName).font(.system(size: 11)).foregroundStyle(Theme.Colors.textSecondary)
+                        Text(team.ownerName).dsCaption()
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("\(team.wins)-\(team.losses)").font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
+                        Text("\(team.wins)-\(team.losses)").dsNumeric(14)
                         Text(String(format: "%.0f PF", team.pointsFor)).font(.system(size: 10)).foregroundStyle(Theme.Colors.textTertiary)
                     }
                 }
@@ -133,18 +131,17 @@ struct LeagueDashboardView: View {
             ForEach(league.teams.sorted { $0.powerScore > $1.powerScore }) { team in
                 VStack(spacing: 6) {
                     HStack {
-                        Text(team.name).font(.system(size: 14, weight: .bold, design: .rounded))
+                        Text(team.name).dsCardTitle()
                             .foregroundStyle(team.isUser ? Theme.Colors.accent : Theme.Colors.textPrimary)
                         Spacer()
-                        Text("\(Int(team.powerScore))").font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Theme.Colors.grade(team.powerScore))
+                        Text("\(Int(team.powerScore))").dsNumeric(15, color: Theme.Colors.grade(team.powerScore))
                     }
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Theme.Colors.surfaceElevated).frame(height: 8)
-                            Capsule().fill(Theme.Colors.grade(team.powerScore)).frame(width: geo.size.width * CGFloat(team.powerScore / 100), height: 8)
+                            Capsule().fill(Theme.Colors.surfaceElevated).frame(height: 7)
+                            Capsule().fill(Theme.Colors.grade(team.powerScore)).frame(width: geo.size.width * CGFloat(team.powerScore / 100), height: 7)
                         }
-                    }.frame(height: 8)
+                    }.frame(height: 7)
                     HStack {
                         Text("Playoff \(Int(team.playoffOdds))%").font(.system(size: 10)).foregroundStyle(Theme.Colors.textTertiary)
                         Spacer()
