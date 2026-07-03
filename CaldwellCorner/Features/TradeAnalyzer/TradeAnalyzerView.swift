@@ -130,7 +130,7 @@ struct TradeResultCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .glassCard(hero: true, radius: 20)
+        .glassCard(radius: 20, hero: true)
     }
     private var riskColor: Color {
         switch result.riskRating {

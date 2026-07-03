@@ -91,7 +91,7 @@ struct AIAssistantView: View {
             Divider().overlay(Theme.Colors.strokeSoft)
             ForEach(state.startSit.prefix(3)) { advice in CoachRecRow(advice: advice) }
         }
-        .glassCard(hero: true, radius: 20)
+        .glassCard(radius: 20, hero: true)
     }
 
     private func legend(color: Color, text: String) -> some View {
