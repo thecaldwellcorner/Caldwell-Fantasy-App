@@ -51,8 +51,7 @@ struct RootView: View {
         case .coach:
             NavigationStack { AIAssistantView(showPaywall: $showPaywall) }
         case .matchup:
-            // TODO(step 4): dedicated Matchup screen. Temporarily reuses League Dashboard.
-            NavigationStack { LeagueDashboardView() }
+            NavigationStack { MatchupView() }
         case .league:
             NavigationStack { LeagueDashboardView() }
         case .rank:
