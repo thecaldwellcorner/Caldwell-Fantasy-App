@@ -162,7 +162,17 @@ extension View {
     }
 }
 
-/// Kept for source compatibility; now a flat dark background.
+/// Dark base with a faint violet glow near the top for subtle lighting/depth.
 struct AppBackground: View {
-    var body: some View { Theme.Colors.background }
+    var body: some View {
+        ZStack {
+            Theme.Colors.background
+            RadialGradient(
+                colors: [Theme.Colors.accent.opacity(0.12), .clear],
+                center: UnitPoint(x: 0.18, y: 0.02), startRadius: 4, endRadius: 340)
+            RadialGradient(
+                colors: [Theme.Colors.info.opacity(0.05), .clear],
+                center: UnitPoint(x: 0.95, y: 0.12), startRadius: 4, endRadius: 300)
+        }
+    }
 }

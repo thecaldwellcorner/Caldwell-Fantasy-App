@@ -108,11 +108,13 @@ struct DashboardView: View {
                 statDivider
                 statCell("Weather", m.weather, Theme.Colors.info)
             }
-            .padding(.vertical, Theme.Spacing.sm)
-            .background(Theme.Colors.surfaceElevated)
+            .padding(.vertical, Theme.Spacing.md)
+            .background(Theme.Colors.background.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                .strokeBorder(Theme.Colors.stroke.opacity(0.7), lineWidth: 1))
         }
-        .card(elevated: true)
+        .glassCard(radius: 22, hero: true)
     }
 
     private var statDivider: some View {
@@ -185,7 +187,7 @@ struct DashboardView: View {
             }
             SeasonChart(values: matchup.weeklySeries)
                 .frame(height: 120)
-                .card(padding: Theme.Spacing.md)
+                .glassCard(padding: Theme.Spacing.md, radius: 18)
         }
     }
 
@@ -290,12 +292,12 @@ struct DiamondLogo: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(Theme.Colors.accent.opacity(0.16))
-                .overlay(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                    .strokeBorder(Theme.Colors.accent.opacity(0.7), lineWidth: 1.5))
+                .fill(LinearGradient(colors: [Theme.Colors.accent, Theme.Colors.accentDeep],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: size * 0.72, height: size * 0.72)
                 .rotationEffect(.degrees(45))
-            Text("IQ").font(.system(size: size * 0.3, weight: .heavy)).foregroundStyle(Theme.Colors.accent)
+                .shadow(color: Theme.Colors.accent.opacity(0.55), radius: 9, y: 3)
+            Text("IQ").font(.system(size: size * 0.3, weight: .heavy)).foregroundStyle(.white)
         }
         .frame(width: size, height: size)
     }
@@ -307,10 +309,10 @@ struct CircleIcon: View {
         Image(systemName: system)
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(Theme.Colors.textPrimary)
-            .frame(width: 38, height: 38)
-            .background(Theme.Colors.surface)
-            .clipShape(Circle())
-            .overlay(Circle().strokeBorder(Theme.Colors.stroke, lineWidth: 1))
+            .frame(width: 40, height: 40)
+            .background(.ultraThinMaterial, in: Circle())
+            .background(Theme.Colors.surface.opacity(0.55), in: Circle())
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
     }
 }
 
@@ -346,7 +348,7 @@ struct LiveGameChip: View {
             teamRow(game.home)
         }
         .frame(width: 128)
-        .card(padding: Theme.Spacing.md)
+        .glassCard(padding: Theme.Spacing.md, radius: 16)
     }
     private func teamRow(_ t: GameTeam) -> some View {
         HStack {
@@ -380,7 +382,7 @@ struct InsightCard: View {
                 Text("\(Int(advice.confidence))%").font(.system(size: 13, weight: .bold)).foregroundStyle(pill.1)
             }
         }
-        .card()
+        .glassCard(radius: 18)
     }
 }
 
@@ -396,8 +398,8 @@ struct QuickTile: View {
             Image(systemName: icon).font(.system(size: 20, weight: .semibold)).foregroundStyle(tint)
             Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary).lineLimit(1)
         }
-        .frame(maxWidth: .infinity, minHeight: 78)
-        .card(padding: Theme.Spacing.md)
+        .frame(maxWidth: .infinity, minHeight: 82)
+        .glassCard(padding: Theme.Spacing.md, radius: 16)
     }
 }
 
