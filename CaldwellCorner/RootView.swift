@@ -55,7 +55,7 @@ struct RootView: View {
         case .league:
             NavigationStack { LeagueDashboardView() }
         case .rank:
-            NavigationStack { RankingsView().navigationTitle("Rankings").navigationBarTitleDisplayMode(.inline) }
+            NavigationStack { RankingsView() }
         case .reels:
             NavigationStack { ReelsView() }
         }

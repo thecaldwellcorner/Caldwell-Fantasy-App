@@ -170,7 +170,7 @@ struct DashboardView: View {
                 NavigationLink { TradeAnalyzerView() } label: { QuickTile("Trade", "arrow.left.arrow.right", Theme.Colors.accent) }
                 NavigationLink { StartSitView() } label: { QuickTile("Start/Sit", "target", Theme.Colors.positive) }
                 NavigationLink { WaiverView() } label: { QuickTile("Waivers", "arrow.up.right", Theme.Colors.info) }
-                NavigationLink { RankingsView().navigationTitle("Rankings").navigationBarTitleDisplayMode(.inline) } label: { QuickTile("Rankings", "chart.bar.fill", Theme.Colors.accent) }
+                NavigationLink { RankingsView() } label: { QuickTile("Rankings", "chart.bar.fill", Theme.Colors.accent) }
                 NavigationLink { DraftCenterView() } label: { QuickTile("Mock Draft", "shield.lefthalf.filled", Theme.Colors.accent) }
                 NavigationLink { AIAssistantView(showPaywall: $showPaywall) } label: { QuickTile("AI Coach", "sparkles", Theme.Colors.accent) }
             }
