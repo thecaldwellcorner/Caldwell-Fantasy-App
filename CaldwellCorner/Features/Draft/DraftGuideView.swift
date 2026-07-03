@@ -48,20 +48,14 @@ struct DraftGuideRow: View {
     let article: DraftGuideArticle
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
-            VStack {
-                Image(systemName: icon).font(.system(size: 20)).foregroundStyle(Theme.Colors.accentSecondary)
-            }.frame(width: 36)
+            DSIconBadge(systemName: icon, size: 40)
             VStack(alignment: .leading, spacing: 3) {
-                Text(article.category.uppercased())
-                    .font(.system(size: 10, weight: .heavy)).foregroundStyle(Theme.Colors.accent)
-                Text(article.title)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.textPrimary).multilineTextAlignment(.leading)
-                Text("\(article.author) · \(article.readMinutes) min read")
-                    .font(.system(size: 11)).foregroundStyle(Theme.Colors.textTertiary)
+                DSEyebrow(text: article.category, color: Theme.Colors.accent)
+                Text(article.title).dsCardTitle().multilineTextAlignment(.leading).lineLimit(2)
+                Text("\(article.author) · \(article.readMinutes) min read").dsCaption()
             }
-            Spacer()
-            Image(systemName: "chevron.right").foregroundStyle(Theme.Colors.textTertiary)
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
         }
         .card(padding: Theme.Spacing.md)
     }
@@ -79,17 +73,12 @@ struct DraftGuideArticleView: View {
     let article: DraftGuideArticle
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                Text(article.category.uppercased())
-                    .font(.system(size: 11, weight: .heavy)).foregroundStyle(Theme.Colors.accent)
-                Text(article.title)
-                    .font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.Colors.textPrimary)
-                Text("\(article.author) · \(article.readMinutes) min read")
-                    .font(.system(size: 12)).foregroundStyle(Theme.Colors.textTertiary)
-                Divider().overlay(Theme.Colors.stroke)
-                Text(article.body)
-                    .font(.system(size: 15)).foregroundStyle(Theme.Colors.textSecondary)
-                    .lineSpacing(5)
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                DSEyebrow(text: article.category, color: Theme.Colors.accent)
+                Text(article.title).dsScreenTitle().fixedSize(horizontal: false, vertical: true)
+                Text("\(article.author) · \(article.readMinutes) min read").dsCaption()
+                Divider().overlay(Theme.Colors.strokeSoft).padding(.vertical, Theme.Spacing.sm)
+                Text(article.body).dsBody().lineSpacing(5)
             }
             .padding(Theme.Spacing.lg)
         }
