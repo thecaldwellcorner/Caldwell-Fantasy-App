@@ -42,8 +42,58 @@ struct DSEyebrow: View {
     var body: some View {
         Text(text.uppercased())
             .font(.system(size: 10, weight: .semibold))
-            .tracking(0.6)
+            .tracking(1.2)
             .foregroundStyle(color)
+    }
+}
+
+// MARK: - Glass card (material + depth + top-edge lighting)
+/// Frosted, elevated surface that matches the Caldwell IQ design language:
+/// a translucent material tint, a subtle top sheen, a light top-edge hairline,
+/// an optional violet glow for hero cards, and a soft drop shadow for depth.
+struct GlassCardModifier: ViewModifier {
+    var padding: CGFloat = Theme.Spacing.lg
+    var radius: CGFloat = 18
+    var hero: Bool = false
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return content
+            .padding(padding)
+            .background {
+                ZStack {
+                    shape.fill(.ultraThinMaterial)
+                    shape.fill(Theme.Colors.surface.opacity(hero ? 0.62 : 0.72))
+                    // Top sheen
+                    shape.fill(
+                        LinearGradient(colors: [Color.white.opacity(hero ? 0.07 : 0.05), .clear],
+                                       startPoint: .top, endPoint: .center))
+                    // Hero: soft violet lighting near the top
+                    if hero {
+                        Ellipse()
+                            .fill(Theme.Colors.accent.opacity(0.22))
+                            .frame(height: 150)
+                            .blur(radius: 55)
+                            .offset(y: -70)
+                            .blendMode(.plusLighter)
+                    }
+                }
+            }
+            .clipShape(shape)
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(colors: [Color.white.opacity(0.16), Theme.Colors.stroke.opacity(0.5)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(hero ? 0.45 : 0.32),
+                    radius: hero ? 22 : 14, x: 0, y: hero ? 12 : 7)
+    }
+}
+
+extension View {
+    func glassCard(padding: CGFloat = Theme.Spacing.lg, radius: CGFloat = 18, hero: Bool = false) -> some View {
+        modifier(GlassCardModifier(padding: padding, radius: radius, hero: hero))
     }
 }
 

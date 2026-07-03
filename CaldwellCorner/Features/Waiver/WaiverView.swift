@@ -9,18 +9,13 @@ struct WaiverView: View {
             VStack(spacing: Theme.Spacing.md) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     HStack {
-                        Text("FAAB Budget Remaining")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.Colors.textSecondary)
+                        Text("FAAB Budget Remaining").dsCallout().foregroundStyle(Theme.Colors.textPrimary)
                         Spacer()
-                        Text("$\(Int(faabBudget))")
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Theme.Colors.accent)
+                        Text("$\(Int(faabBudget))").dsNumeric(15, color: Theme.Colors.accent)
                     }
-                    Slider(value: $faabBudget, in: 0...100, step: 1)
-                        .tint(Theme.Colors.accent)
+                    Slider(value: $faabBudget, in: 0...100, step: 1).tint(Theme.Colors.accent)
                 }
-                .card()
+                .glassCard(radius: 18)
 
                 ForEach(state.waivers.sorted { $0.priority < $1.priority }) { target in
                     WaiverCard(target: target, budget: faabBudget, locked: target.isPremium && !state.isPremium)
@@ -43,47 +38,30 @@ struct WaiverCard: View {
         VStack(spacing: Theme.Spacing.md) {
             HStack(spacing: Theme.Spacing.md) {
                 ZStack {
-                    Circle().fill(Theme.Colors.surfaceElevated).frame(width: 30, height: 30)
-                    Text("\(target.priority)")
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Theme.Colors.accentSecondary)
+                    Circle().fill(Theme.Colors.surfaceElevated).frame(width: 32, height: 32)
+                    Text("\(target.priority)").dsNumeric(14, color: Theme.Colors.accent)
                 }
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(target.playerName)
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Text(target.playerName).dsCardTitle().lineLimit(1)
                         if locked { PremiumBadge() }
                     }
                     HStack(spacing: 6) {
                         PositionBadge(position: target.position.rawValue, compact: true)
-                        Text("\(target.team) · \(Int(target.rosteredPct))% rostered")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Theme.Colors.textSecondary)
+                        Text("\(target.team) · \(Int(target.rosteredPct))% rostered").dsCaption()
                     }
                 }
                 Spacer()
-                VStack(spacing: 0) {
-                    Text("$\(Int(Double(target.faabBidPct) / 100.0 * budget))")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Theme.Colors.accent)
-                    Text("BID")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Theme.Colors.textTertiary)
+                VStack(spacing: 1) {
+                    Text("$\(Int(Double(target.faabBidPct) / 100.0 * budget))").dsNumeric(18, color: Theme.Colors.accent)
+                    DSEyebrow(text: "Bid")
                 }
             }
-            if locked {
-                Text("Unlock full waiver analysis with Premium.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.Colors.textTertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Text(target.reason)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Text(locked ? "Unlock full waiver analysis with Premium." : target.reason)
+                .dsCallout()
+                .foregroundStyle(locked ? Theme.Colors.textTertiary : Theme.Colors.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .card()
+        .glassCard(radius: 18)
     }
 }
