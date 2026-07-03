@@ -12,9 +12,8 @@ struct TradeAnalyzerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.lg) {
-                Text("Build a trade to get an instant grade, fairness score and AI breakdown using your league's settings.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.Colors.textSecondary)
+                Text("Build a trade to get a grade, fairness score and AI breakdown from your league's settings.")
+                    .dsCallout()
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let league = state.selectedLeague {
@@ -29,8 +28,8 @@ struct TradeAnalyzerView: View {
 
                 tradeSide(title: "You Give", players: $sideA, side: .a, tint: Theme.Colors.negative)
                 Image(systemName: "arrow.up.arrow.down")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Theme.Colors.accent)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.textTertiary)
                 tradeSide(title: "You Get", players: $sideB, side: .b, tint: Theme.Colors.positive)
 
                 PrimaryButton(title: "Analyze Trade", systemImage: "wand.and.stars") {
@@ -61,23 +60,19 @@ struct TradeAnalyzerView: View {
     private func tradeSide(title: String, players: Binding<[Player]>, side: Side, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack {
-                Text(title)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(tint)
+                DSEyebrow(text: title, color: tint)
                 Spacer()
                 let total = players.wrappedValue.map { ($0.dynastyValue) }.reduce(0, +)
                 if !players.wrappedValue.isEmpty {
-                    Text("Value \(Int(total))")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text("Value \(Int(total))").dsCaption()
                 }
             }
             ForEach(players.wrappedValue) { p in
                 HStack {
-                    PlayerAvatar(name: p.name, position: p.position.rawValue, size: 32)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(p.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
-                        Text("\(p.position.rawValue) · \(p.team)").font(.system(size: 11)).foregroundStyle(Theme.Colors.textSecondary)
+                    PlayerAvatar(name: p.name, position: p.position.rawValue, size: 34)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(p.name).dsCardTitle().lineLimit(1)
+                        Text("\(p.position.rawValue) · \(p.team)").dsCaption()
                     }
                     Spacer()
                     Button {
@@ -110,17 +105,12 @@ struct TradeResultCard: View {
     var body: some View {
         VStack(spacing: Theme.Spacing.lg) {
             HStack(spacing: Theme.Spacing.lg) {
-                GradeRing(score: result.tradeGrade, size: 88, label: "GRADE")
+                GradeRing(score: result.tradeGrade, size: 80, label: "GRADE")
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(result.verdict)
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Theme.Colors.textPrimary)
+                    Text(result.verdict).dsSectionTitle()
                     HStack(spacing: 4) {
-                        Text("Risk:")
-                            .font(.system(size: 12)).foregroundStyle(Theme.Colors.textSecondary)
-                        Text(result.riskRating)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(riskColor)
+                        Text("Risk").dsCaption()
+                        Text(result.riskRating).font(.system(size: 12, weight: .semibold)).foregroundStyle(riskColor)
                     }
                 }
                 Spacer()
@@ -128,17 +118,15 @@ struct TradeResultCard: View {
 
             HStack(spacing: Theme.Spacing.sm) {
                 MetricChip(label: "Fairness", value: "\(Int(result.fairnessScore))", tint: Theme.Colors.grade(result.fairnessScore))
-                MetricChip(label: "Win Now", value: "\(Int(result.winNowScore))", tint: Theme.Colors.info)
-                MetricChip(label: "Future", value: "\(Int(result.futureScore))", tint: Theme.Colors.accentSecondary)
+                MetricChip(label: "Win Now", value: "\(Int(result.winNowScore))")
+                MetricChip(label: "Future", value: "\(Int(result.futureScore))")
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Label("AI Breakdown", systemImage: "sparkles")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.Colors.accent)
-                Text(result.explanation)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.Colors.textSecondary)
+                Text(result.explanation).dsBody().fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

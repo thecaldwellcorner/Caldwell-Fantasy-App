@@ -24,26 +24,17 @@ struct NewsDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                if item.isBreaking {
-                    Text("BREAKING NEWS")
-                        .font(.system(size: 11, weight: .heavy))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Theme.Colors.negative)
-                        .clipShape(Capsule())
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    if item.isBreaking { Tag(text: "Breaking", color: Theme.Colors.negative, filled: true) }
+                    Text(item.headline).dsScreenTitle().fixedSize(horizontal: false, vertical: true)
+                    Text("\(item.source) · \(item.timestamp.relativeShort)").dsCaption()
                 }
-                Text(item.headline)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Theme.Colors.textPrimary)
-                Text("\(item.source) · \(item.timestamp.relativeShort)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.Colors.textTertiary)
 
                 if let name = item.playerName, let pos = item.position {
                     HStack {
                         PlayerAvatar(name: name, position: pos.rawValue, size: 40)
-                        VStack(alignment: .leading) {
-                            Text(name).font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.Colors.textPrimary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(name).dsCardTitle()
                             PositionBadge(position: pos.rawValue, compact: true)
                         }
                         Spacer()
@@ -54,11 +45,9 @@ struct NewsDetailView: View {
 
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     Label("AI Fantasy Impact", systemImage: "sparkles")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.Colors.accent)
-                    Text(item.aiSummary)
-                        .font(.system(size: 15))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text(item.aiSummary).dsBody().fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .card()
@@ -72,11 +61,6 @@ struct NewsDetailView: View {
 
     private var impactPill: some View {
         let color: Color = item.fantasyImpact == "Stock Up" ? Theme.Colors.positive : item.fantasyImpact == "Stock Down" ? Theme.Colors.negative : Theme.Colors.textSecondary
-        return Text(item.fantasyImpact)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(.black)
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(color)
-            .clipShape(Capsule())
+        return Tag(text: item.fantasyImpact, color: color, filled: true)
     }
 }

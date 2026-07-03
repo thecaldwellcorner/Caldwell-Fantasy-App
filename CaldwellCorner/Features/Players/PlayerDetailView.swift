@@ -35,14 +35,10 @@ struct PlayerDetailView: View {
         HStack(spacing: Theme.Spacing.lg) {
             PlayerAvatar(name: player.name, position: player.position.rawValue, size: 72)
             VStack(alignment: .leading, spacing: 6) {
-                Text(player.name)
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.Colors.textPrimary)
+                Text(player.name).dsScreenTitle()
                 HStack(spacing: 6) {
                     PositionBadge(position: player.position.rawValue)
-                    Text("\(player.team) · #\(player.overallRank) OVR")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text("\(player.team) · #\(player.overallRank) OVR").dsCallout()
                 }
                 HStack(spacing: 6) {
                     statusPill
@@ -54,12 +50,13 @@ struct PlayerDetailView: View {
     }
 
     private var statusPill: some View {
-        Text(player.injuryStatus.rawValue)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(player.injuryStatus.isConcern ? .black : Theme.Colors.textSecondary)
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(player.injuryStatus.isConcern ? Theme.Colors.warning : Theme.Colors.surfaceElevated)
-            .clipShape(Capsule())
+        Group {
+            if player.injuryStatus.isConcern {
+                Tag(text: player.injuryStatus.rawValue, color: Theme.Colors.warning, filled: true)
+            } else {
+                Tag(text: player.injuryStatus.rawValue, color: Theme.Colors.textSecondary)
+            }
+        }
     }
 
     private var valueRow: some View {
@@ -90,15 +87,7 @@ struct PlayerDetailView: View {
                 }
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.Colors.textSecondary)
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.Colors.surfaceElevated).frame(height: 8)
-                        Capsule()
-                            .fill(LinearGradient(colors: [Theme.Colors.negative, Theme.Colors.accentSecondary, Theme.Colors.positive], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: geo.size.width, height: 8)
-                    }
-                }
-                .frame(height: 8)
+                Capsule().fill(Theme.Colors.accent.opacity(0.9)).frame(height: 6)
             }
             .card(padding: Theme.Spacing.md)
 
@@ -112,15 +101,13 @@ struct PlayerDetailView: View {
 
     private func projColumn(_ label: String, _ value: Double) -> some View {
         VStack(spacing: 4) {
-            Text(String(format: "%.1f", value))
-                .font(.system(size: 22, weight: .heavy, design: .rounded))
-                .foregroundStyle(Theme.Colors.accent)
-            Text(label.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Theme.Colors.textTertiary)
+            Text(String(format: "%.1f", value)).dsNumeric(20, color: Theme.Colors.accent)
+            DSEyebrow(text: label)
         }
         .frame(maxWidth: .infinity)
-        .card(padding: Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.md)
+        .background(Theme.Colors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
     }
 
     @ViewBuilder private var advancedMetrics: some View {
@@ -151,13 +138,9 @@ struct PlayerDetailView: View {
     private func metricBar(_ label: String, _ value: Double, max: Double, fmt: String = "%.0f") -> some View {
         VStack(spacing: 4) {
             HStack {
-                Text(label)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.Colors.textSecondary)
+                Text(label).dsCallout()
                 Spacer()
-                Text(String(format: fmt, value))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.textPrimary)
+                Text(String(format: fmt, value)).dsNumeric(13)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -195,20 +178,17 @@ struct PlayerDetailView: View {
 
     private func detailRow(_ k: String, _ v: String) -> some View {
         HStack {
-            Text(k).font(.system(size: 13)).foregroundStyle(Theme.Colors.textSecondary)
+            Text(k).dsCallout()
             Spacer()
             Text(v).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
     }
 
     private var blurb: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             SectionHeader(title: "Scouting Report")
-            Text(player.blurb)
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .card()
+            Text(player.blurb).dsBody().fixedSize(horizontal: false, vertical: true).card()
         }
     }
 }
@@ -216,15 +196,9 @@ struct PlayerDetailView: View {
 struct LockedMetricsCard: View {
     var body: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 24))
-                .foregroundStyle(Theme.Colors.accentSecondary)
-            Text("Advanced metrics are Premium")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.Colors.textPrimary)
-            Text("YPRR, target share, EPA, RAS and more.")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.Colors.textSecondary)
+            Image(systemName: "lock.fill").font(.system(size: 24)).foregroundStyle(Theme.Colors.accentSecondary)
+            Text("Advanced metrics are Premium").dsCardTitle()
+            Text("YPRR, target share, EPA, RAS and more.").dsCaption()
         }
         .frame(maxWidth: .infinity)
         .card()

@@ -30,15 +30,13 @@ struct DynastyHubView: View {
     private var rookies: some View {
         ForEach(state.rookies) { r in
             HStack(spacing: Theme.Spacing.md) {
-                Text("\(r.rookieRank)")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.Colors.accentSecondary).frame(width: 26)
+                Text("\(r.rookieRank)").dsNumeric(15, color: Theme.Colors.accentSecondary).frame(width: 24)
                 PlayerAvatar(name: r.name, position: r.position.rawValue, size: 40)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(r.name).font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(Theme.Colors.textPrimary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(r.name).dsCardTitle().lineLimit(1)
                     HStack(spacing: 6) {
                         PositionBadge(position: r.position.rawValue, compact: true)
-                        Text(r.college).font(.system(size: 11)).foregroundStyle(Theme.Colors.textSecondary)
+                        Text(r.college).dsCaption()
                     }
                     Text("Comp: \(r.comp)").font(.system(size: 11)).foregroundStyle(Theme.Colors.textTertiary)
                 }
@@ -51,20 +49,19 @@ struct DynastyHubView: View {
 
     private var picks: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            Text("Future pick trade values (KTC-style). Use these to balance any trade involving draft capital.")
-                .font(.system(size: 13)).foregroundStyle(Theme.Colors.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Future pick trade values. Use these to balance any trade involving draft capital.")
+                .dsCallout().frame(maxWidth: .infinity, alignment: .leading)
             ForEach(state.pickValues) { pick in
                 HStack {
-                    Text(pick.label).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
+                    Text(pick.label).dsCardTitle()
                     Spacer()
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Theme.Colors.surfaceElevated).frame(height: 8)
-                            Capsule().fill(Theme.Colors.accent).frame(width: geo.size.width * CGFloat(pick.value / 80), height: 8)
+                            Capsule().fill(Theme.Colors.surfaceElevated).frame(height: 7)
+                            Capsule().fill(Theme.Colors.accent).frame(width: geo.size.width * CGFloat(pick.value / 80), height: 7)
                         }
-                    }.frame(height: 8).frame(maxWidth: 120)
-                    Text("\(Int(pick.value))").font(.system(size: 15, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.accent).frame(width: 36, alignment: .trailing)
+                    }.frame(height: 7).frame(maxWidth: 120)
+                    Text("\(Int(pick.value))").dsNumeric(15, color: Theme.Colors.accent).frame(width: 36, alignment: .trailing)
                 }
                 .card(padding: Theme.Spacing.md)
             }
@@ -74,7 +71,7 @@ struct DynastyHubView: View {
     private var ageCurve: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             Text("Production peaks and decline windows by position. Buy ascending players, sell before the cliff.")
-                .font(.system(size: 13)).foregroundStyle(Theme.Colors.textSecondary)
+                .dsCallout()
             ForEach([("RB", "22-26", "27", Theme.Colors.position("RB")),
                      ("WR", "24-29", "30", Theme.Colors.position("WR")),
                      ("TE", "25-30", "31", Theme.Colors.position("TE")),
