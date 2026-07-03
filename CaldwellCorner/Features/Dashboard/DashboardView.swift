@@ -51,6 +51,14 @@ struct DashboardView: View {
             NavigationLink { NotificationsView() } label: {
                 CircleIcon(system: "bell")
             }
+            NavigationLink { ProfileView(showPaywall: $showPaywall) } label: {
+                Text(state.profile.displayName.initials)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.Colors.accent.opacity(0.85), in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+            }
         }
     }
 
