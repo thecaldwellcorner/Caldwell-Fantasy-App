@@ -240,6 +240,7 @@ private struct MatchupSummary {
     let seasonAvg: String
     let weeklySeries: [Double]
 
+    @MainActor
     init(state: AppState) {
         let league = state.selectedLeague
         week = league?.currentWeek ?? 11
