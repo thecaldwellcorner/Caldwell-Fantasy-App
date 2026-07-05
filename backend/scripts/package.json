@@ -3,16 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Sync NFL players from the Sleeper API into the Supabase players table.",
-  "engines": {
-    "node": ">=18"
-  },
-  "scripts": {
-    "sync": "node syncSleeperPlayers.js",
-    "sync:dry": "node syncSleeperPlayers.js --dry-run"
-  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
-    "dotenv": "^16.4.5"
+    "@supabase/supabase-js": "^2.45.4"
   }
 }
