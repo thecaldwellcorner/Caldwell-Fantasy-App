@@ -1,9 +1,13 @@
 {
-  "name": "caldwell-iq-sync-sleeper-players",
+  "name": "caldwell-iq-import-players",
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "import": "node importPlayers.js"
+  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4"
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5"
   }
 }

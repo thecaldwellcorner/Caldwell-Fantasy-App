@@ -1,20 +1,21 @@
-# Sync NFL players into Supabase
+# Import NFL players into Supabase
 
-## Step 1 — create the table
+`importPlayers.js` fetches every NFL player from Sleeper and upserts them into
+your Supabase `players` table (unique key: `sleeper_id`).
 
-In Supabase, open the **SQL Editor**, paste the contents of
-[`players_table.sql`](./players_table.sql), and click **Run**.
+Your `players` table needs a `sleeper_id` column that is the primary key (or has
+a unique constraint). See [`players_table.sql`](./players_table.sql) if you need it.
 
-## Step 2 — run these 3 terminal commands
-
-Replace the two values with your own from **Supabase → Project Settings → API**.
+## Terminal commands
 
 ```bash
 cd backend/scripts
+cp .env.example .env        # then open .env and paste in your two values
 npm install
-SUPABASE_URL="https://YOUR_PROJECT.supabase.co" SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY" node syncSleeperPlayers.js
+node importPlayers.js
 ```
 
-That's it. You'll see how many players were fetched and synced.
+Get `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from **Supabase → Project
+Settings → API**. Keep the service role key private — never put it in the iOS app.
 
-> Keep the service role key on your computer/server only. Never put it in the iOS app.
+Tested with Node.js v22 (uses the built-in `fetch`).
