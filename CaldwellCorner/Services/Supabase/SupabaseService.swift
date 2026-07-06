@@ -46,15 +46,19 @@ actor SupabaseService {
     /// - Parameters:
     ///   - search: case-insensitive substring match on `full_name`.
     ///   - team: NFL team abbreviation (matches the `team` column).
-    ///   - position: position code such as `QB`, `RB`, `WR`, `TE`.
+    ///   - position: a single position code such as `QB`, `RB`, `WR`, `TE`.
+    ///   - positions: a set of position codes (e.g. FLEX = `["RB","WR","TE"]`).
+    ///     Takes precedence over `position` when non-empty.
     ///   - activeOnly: when true, returns only active players.
-    ///   - limit: maximum rows to return.
+    ///   - limit: maximum rows to return (high by default so a position filter
+    ///     returns *all* matching players, not just a handful).
     func fetchPlayers(
         search: String? = nil,
         team: String? = nil,
         position: String? = nil,
+        positions: [String]? = nil,
         activeOnly: Bool = true,
-        limit: Int = 200
+        limit: Int = 1000
     ) async throws -> [SupabasePlayer] {
         var query: [URLQueryItem] = [
             URLQueryItem(name: "select", value: "*"),
@@ -70,7 +74,11 @@ actor SupabaseService {
         if let team, !team.isEmpty {
             query.append(URLQueryItem(name: "team", value: "eq.\(team)"))
         }
-        if let position, !position.isEmpty {
+        if let positions, !positions.isEmpty {
+            // PostgREST `in` filter, e.g. position=in.(QB,RB,WR,TE). Also excludes
+            // rows with a null position, keeping the list fantasy-relevant.
+            query.append(URLQueryItem(name: "position", value: "in.(\(positions.joined(separator: ",")))"))
+        } else if let position, !position.isEmpty {
             query.append(URLQueryItem(name: "position", value: "eq.\(position)"))
         }
         if activeOnly {
