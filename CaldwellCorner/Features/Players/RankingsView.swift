@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Position scope for the rankings list. `FLEX` spans RB/WR/TE and `ALL` covers
-/// every fantasy-relevant position.
+/// every fantasy-relevant position (the ranking view is already QB/RB/WR/TE).
 enum RankFilter: String, CaseIterable, Identifiable {
     case all = "ALL"
     case qb = "QB"
@@ -12,10 +12,10 @@ enum RankFilter: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Positions queried from Supabase for this filter.
+    /// Positions passed to the query. Empty = no position filter.
     var positions: [String] {
         switch self {
-        case .all: return ["QB", "RB", "WR", "TE", "K", "DEF"]
+        case .all: return []
         case .flex: return ["RB", "WR", "TE"]
         case .qb: return ["QB"]
         case .rb: return ["RB"]
@@ -32,17 +32,18 @@ enum RankFilter: String, CaseIterable, Identifiable {
     }
 }
 
-/// Supabase-backed store for the Player Rankings screen. Loads all matching
-/// active, fantasy-relevant players (not a capped handful) and exposes an
-/// explicit `LoadState` so the view can render loading / empty / error.
+/// Supabase-backed store for Player Rankings. Loads the top fantasy-relevant
+/// players from the `player_rankings` view (ranked by relevance, not
+/// alphabetically) and exposes a `LoadState` for loading / empty / error.
 @MainActor
 final class PlayerRankingsStore: ObservableObject {
-    @Published var state: LoadState<[SupabasePlayer]> = .idle
+    @Published var state: LoadState<[RankedPlayer]> = .idle
     @Published var searchText: String = ""
     @Published var filter: RankFilter = .all
 
     private let service: SupabaseService
     private var searchTask: Task<Void, Never>?
+    private let pageLimit = 300
 
     init(service: SupabaseService = .shared) {
         self.service = service
@@ -51,31 +52,43 @@ final class PlayerRankingsStore: ObservableObject {
     func load() async {
         state = .loading
         do {
-            let players = try await service.fetchPlayers(
-                search: searchText.isEmpty ? nil : searchText,
+            let players = try await service.fetchRankedPlayers(
                 positions: filter.positions,
-                activeOnly: true,
-                limit: 1000
+                search: searchText.isEmpty ? nil : searchText,
+                limit: pageLimit
             )
-            #if DEBUG
-            print("✅ Supabase connected successfully")
-            print("👥 Players loaded: \(players.count)")
-            let firstFive = players.prefix(5).map { $0.displayName }.joined(separator: ", ")
-            print("📋 First 5 players: \(firstFive.isEmpty ? "—" : firstFive)")
-            #endif
+            logDebug(players)
             state = players.isEmpty ? .empty : .loaded(players)
         } catch {
             let message =
                 (error as? SupabaseService.ServiceError)?.errorDescription
                 ?? error.localizedDescription
             #if DEBUG
-            print("❌ Supabase load failed: \(message)")
+            print("❌ Supabase rankings error: \(message)")
             #endif
             state = .failed(message)
         }
     }
 
-    /// Live search with a short debounce so we don't fire a request per keystroke.
+    private func logDebug(_ players: [RankedPlayer]) {
+        #if DEBUG
+        let season = players.first?.latestSeason.map(String.init) ?? "unknown"
+        print("📅 Latest stats season selected: \(season)")
+        print("✅ Eligible players loaded (\(filter.rawValue)): \(players.count)")
+        print("🏈 Top 10 by relevance:")
+        for (i, p) in players.prefix(10).enumerated() {
+            let score = p.relevanceScore.map { String(format: "%.1f", $0) } ?? "—"
+            print("   \(i + 1). \(p.displayName) [\(p.position ?? "?")] score=\(score)")
+        }
+        let byPos = Dictionary(grouping: players, by: { $0.position ?? "?" })
+            .mapValues { $0.count }
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key):\($0.value)" }
+            .joined(separator: "  ")
+        print("📊 Players per position (loaded): \(byPos)")
+        #endif
+    }
+
     func searchChanged() {
         searchTask?.cancel()
         searchTask = Task { [weak self] in
@@ -218,7 +231,7 @@ struct RankingsView: View {
         .refreshable { await store.load() }
     }
 
-    private func playerList(_ players: [SupabasePlayer]) -> some View {
+    private func playerList(_ players: [RankedPlayer]) -> some View {
         ScrollView {
             LazyVStack(spacing: Theme.Spacing.sm) {
                 HStack {
@@ -231,7 +244,7 @@ struct RankingsView: View {
                     NavigationLink {
                         SupabasePlayerDetailView(player: player, rank: index + 1)
                     } label: {
-                        SupabaseRankingRow(rank: index + 1, player: player)
+                        RankedPlayerRow(rank: index + 1, player: player)
                     }
                     .buttonStyle(.plain)
                 }
@@ -243,9 +256,16 @@ struct RankingsView: View {
     }
 }
 
-struct SupabaseRankingRow: View {
+struct RankedPlayerRow: View {
     let rank: Int
-    let player: SupabasePlayer
+    let player: RankedPlayer
+
+    private var totalPts: String {
+        player.totalFantasyPointsPpr.map { String(format: "%.0f", $0) } ?? "—"
+    }
+    private var ppg: String {
+        player.fantasyPointsPerGame.map { String(format: "%.1f", $0) } ?? "—"
+    }
 
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
@@ -266,6 +286,10 @@ struct SupabaseRankingRow: View {
                 }
             }
             Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(totalPts).dsNumeric(16, color: Theme.Colors.textPrimary)
+                Text("\(ppg) PPG").dsCaption()
+            }
         }
         .card(padding: Theme.Spacing.md)
     }

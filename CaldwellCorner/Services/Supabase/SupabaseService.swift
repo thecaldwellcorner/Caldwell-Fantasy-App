@@ -116,10 +116,66 @@ actor SupabaseService {
         return rows.first
     }
 
-    // MARK: - Detail data (from optional tables; empty when not set up yet)
+    // MARK: - Rankings (the `player_rankings` view)
 
-    /// Next scheduled games for a team. Returns `[]` if the `games` table isn't
-    /// set up yet (so the UI can show "coming soon" rather than fabricating).
+    /// Fetch fantasy-relevant, active QB/RB/WR/TE ranked by relevance score.
+    /// - When `search` is empty, only players with production this season are
+    ///   returned (games_played > 0), sorted by relevance.
+    /// - When `search` is set, the full eligible active-player pool is searched
+    ///   (even players without stats), so any active QB/RB/WR/TE is findable.
+    func fetchRankedPlayers(
+        positions: [String]? = nil,
+        search: String? = nil,
+        limit: Int = 300
+    ) async throws -> [RankedPlayer] {
+        var query: [URLQueryItem] = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "order", value: "relevance_score.desc.nullslast"),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        if let positions, !positions.isEmpty {
+            query.append(URLQueryItem(name: "position", value: "in.(\(positions.joined(separator: ",")))"))
+        }
+        let term = (search ?? "").trimmingCharacters(in: .whitespaces)
+        if term.isEmpty {
+            query.append(URLQueryItem(name: "games_played", value: "gt.0"))
+        } else {
+            query.append(URLQueryItem(name: "full_name", value: "ilike.*\(term)*"))
+        }
+        return try await get(table: "player_rankings", query: query)
+    }
+
+    // MARK: - Detail data (keyed by the player's uuid `player_id`)
+
+    /// Weekly box scores for a player, newest first (used for season totals +
+    /// recent games). Empty if the table isn't populated yet.
+    func fetchWeeklyStats(playerId: String, limit: Int = 40) async throws -> [SupabaseWeeklyStat] {
+        try await optionalTable(
+            table: "player_weekly_stats",
+            query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "player_id", value: "eq.\(playerId)"),
+                URLQueryItem(name: "order", value: "season.desc,week.desc"),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+    }
+
+    /// Advanced usage metrics for a player, newest first.
+    func fetchAdvancedStats(playerId: String, limit: Int = 40) async throws -> [AdvancedStat] {
+        try await optionalTable(
+            table: "player_advanced_stats",
+            query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "player_id", value: "eq.\(playerId)"),
+                URLQueryItem(name: "order", value: "season.desc,week.desc"),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+    }
+
+    /// Next scheduled games for a team, ordered by kickoff. Empty if the `games`
+    /// table isn't populated yet (UI shows "coming soon" rather than fabricating).
     func fetchUpcomingGames(team: String, limit: Int = 5) async throws -> [SupabaseGame] {
         guard !team.isEmpty else { return [] }
         return try await optionalTable(
@@ -128,32 +184,7 @@ actor SupabaseService {
                 URLQueryItem(name: "select", value: "*"),
                 URLQueryItem(name: "or", value: "(home_team.eq.\(team),away_team.eq.\(team))"),
                 URLQueryItem(name: "status", value: "eq.scheduled"),
-                URLQueryItem(name: "order", value: "kickoff.asc"),
-                URLQueryItem(name: "limit", value: String(limit)),
-            ]
-        )
-    }
-
-    func fetchProjection(playerId: String) async throws -> [SupabaseProjection] {
-        try await optionalTable(
-            table: "player_projections",
-            query: [
-                URLQueryItem(name: "select", value: "*"),
-                URLQueryItem(name: "player_id", value: "eq.\(playerId)"),
-                URLQueryItem(name: "order", value: "week.asc"),
-                URLQueryItem(name: "limit", value: "40"),
-            ]
-        )
-    }
-
-    func fetchRecentStats(playerId: String, limit: Int = 5) async throws -> [SupabaseWeeklyStat] {
-        try await optionalTable(
-            table: "player_weekly_stats",
-            query: [
-                URLQueryItem(name: "select", value: "*"),
-                URLQueryItem(name: "player_id", value: "eq.\(playerId)"),
-                URLQueryItem(name: "week", value: "gt.0"),
-                URLQueryItem(name: "order", value: "season.desc,week.desc"),
+                URLQueryItem(name: "order", value: "kickoff_at.asc.nullslast"),
                 URLQueryItem(name: "limit", value: String(limit)),
             ]
         )
