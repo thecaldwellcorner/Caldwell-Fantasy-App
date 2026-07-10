@@ -139,10 +139,8 @@ struct SupabasePlayerDetailView: View {
     }
 
     private var headerTeamLine: String {
-        var parts: [String] = []
-        parts.append(player.team?.isEmpty == false ? player.team! : "Free Agent")
-        if let jersey = player.jerseyNumber { parts.append("#\(jersey)") }
-        return parts.joined(separator: " · ")
+        // `players` has no jersey_number column, so we don't show a jersey.
+        player.team?.isEmpty == false ? player.team! : "Free Agent"
     }
 
     // MARK: - Player info
