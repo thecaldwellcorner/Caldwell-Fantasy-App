@@ -6,7 +6,7 @@
 // imports nothing and exits cleanly. Images are never invented.
 // Usage: node importPlayerImages.js [--dry-run]
 
-import "dotenv/config";
+import "./lib/loadEnv.js";
 import { parseArgs, makeLogger, reportUnmatched } from "./lib/cli.js";
 import { getSupabase } from "./lib/supabase.js";
 import { getImagesProvider } from "./providers/images.js";

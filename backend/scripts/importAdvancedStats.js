@@ -6,7 +6,7 @@
 // from additional nflverse datasets (nextgen/ftn) behind the same adapter.
 // Usage: node importAdvancedStats.js [season] [--dry-run]
 
-import "dotenv/config";
+import "./lib/loadEnv.js";
 import { parseArgs, makeLogger, reportUnmatched } from "./lib/cli.js";
 import { getSupabase } from "./lib/supabase.js";
 import { fetchAdvancedStats, SOURCE } from "./lib/nflverse.js";

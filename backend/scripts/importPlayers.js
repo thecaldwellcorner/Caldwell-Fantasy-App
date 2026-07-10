@@ -1,7 +1,7 @@
 // Imports all NFL players from Sleeper into your Supabase `players` table.
 // Loads SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from a .env file.
 
-import "dotenv/config";
+import "./lib/loadEnv.js";
 import { createClient } from "@supabase/supabase-js";
 
 const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;

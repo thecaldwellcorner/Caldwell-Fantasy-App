@@ -2,7 +2,7 @@
 // `player_weekly_stats`, matching players to our Supabase players table.
 // Usage: node importWeeklyStats.js [season] [--dry-run]
 
-import "dotenv/config";
+import "./lib/loadEnv.js";
 import { parseArgs, makeLogger, reportUnmatched } from "./lib/cli.js";
 import { getSupabase } from "./lib/supabase.js";
 import { fetchWeeklyStats, SOURCE } from "./lib/nflverse.js";

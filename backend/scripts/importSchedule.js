@@ -1,7 +1,7 @@
 // Imports the NFL schedule for a season from nflverse into the `games` table.
 // Usage: node importSchedule.js [season] [--dry-run]
 
-import "dotenv/config";
+import "./lib/loadEnv.js";
 import { parseArgs, makeLogger } from "./lib/cli.js";
 import { getSupabase } from "./lib/supabase.js";
 import { fetchSchedule, SOURCE } from "./lib/nflverse.js";

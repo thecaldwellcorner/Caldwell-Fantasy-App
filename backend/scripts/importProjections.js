@@ -5,7 +5,7 @@
 // adapter, this script imports nothing and exits cleanly.
 // Usage: node importProjections.js [season] [--dry-run]
 
-import "dotenv/config";
+import "./lib/loadEnv.js";
 import { parseArgs, makeLogger, reportUnmatched } from "./lib/cli.js";
 import { getSupabase } from "./lib/supabase.js";
 import { getProjectionsProvider } from "./providers/projections.js";
