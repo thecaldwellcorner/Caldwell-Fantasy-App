@@ -227,6 +227,22 @@ struct SupabasePlayerDetailView: View {
 
     @ViewBuilder
     private func advancedTiles(_ rows: [AdvancedStat]) -> some View {
+        let present = presentAdvancedMetrics(rows)
+        if present.isEmpty {
+            ComingSoon(text: "Advanced metrics coming soon.")
+        } else {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Spacing.sm) {
+                ForEach(present, id: \.label) { metric in
+                    InfoTile(label: metric.label, value: metric.value)
+                }
+            }
+        }
+    }
+
+    /// Averages advanced metrics over the latest season and returns only those
+    /// with real (non-null) values, formatted for display. Kept out of the
+    /// `@ViewBuilder` above so its `return`s don't disable the result builder.
+    private func presentAdvancedMetrics(_ rows: [AdvancedStat]) -> [(label: String, value: String)] {
         let latest = rows.compactMap(\.season).max()
         let seasonRows = latest == nil ? rows : rows.filter { $0.season == latest }
         func avg(_ kp: (AdvancedStat) -> Double?) -> Double? {
@@ -243,15 +259,9 @@ struct SupabasePlayerDetailView: View {
             ("xFP", avg { $0.expectedFantasyPoints }, false),
             ("FPOE", avg { $0.fantasyPointsOverExpected }, false),
         ]
-        let present = metrics.filter { $0.1 != nil }
-        if present.isEmpty {
-            ComingSoon(text: "Advanced metrics coming soon.")
-        } else {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Spacing.sm) {
-                ForEach(present, id: \.0) { metric in
-                    InfoTile(label: metric.0, value: metric.2 ? pct(metric.1) : fmt2(metric.1))
-                }
-            }
+        return metrics.compactMap { metric in
+            guard let value = metric.1 else { return nil }
+            return (metric.0, metric.2 ? pct(value) : fmt2(value))
         }
     }
 
