@@ -103,6 +103,62 @@ actor SupabaseService {
         try await fetchPlayers(position: position, limit: limit)
     }
 
+    /// Fetch a single player by its Sleeper id.
+    func fetchPlayer(id: String) async throws -> SupabasePlayer? {
+        let rows: [SupabasePlayer] = try await get(
+            table: "players",
+            query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "sleeper_id", value: "eq.\(id)"),
+                URLQueryItem(name: "limit", value: "1"),
+            ]
+        )
+        return rows.first
+    }
+
+    // MARK: - Detail data (from optional tables; empty when not set up yet)
+
+    /// Next scheduled games for a team. Returns `[]` if the `games` table isn't
+    /// set up yet (so the UI can show "coming soon" rather than fabricating).
+    func fetchUpcomingGames(team: String, limit: Int = 5) async throws -> [SupabaseGame] {
+        guard !team.isEmpty else { return [] }
+        return try await optionalTable(
+            table: "games",
+            query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "or", value: "(home_team.eq.\(team),away_team.eq.\(team))"),
+                URLQueryItem(name: "status", value: "eq.scheduled"),
+                URLQueryItem(name: "order", value: "kickoff.asc"),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+    }
+
+    func fetchProjection(playerId: String) async throws -> [SupabaseProjection] {
+        try await optionalTable(
+            table: "player_projections",
+            query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "player_id", value: "eq.\(playerId)"),
+                URLQueryItem(name: "order", value: "week.asc"),
+                URLQueryItem(name: "limit", value: "40"),
+            ]
+        )
+    }
+
+    func fetchRecentStats(playerId: String, limit: Int = 5) async throws -> [SupabaseWeeklyStat] {
+        try await optionalTable(
+            table: "player_weekly_stats",
+            query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "player_id", value: "eq.\(playerId)"),
+                URLQueryItem(name: "week", value: "gt.0"),
+                URLQueryItem(name: "order", value: "season.desc,week.desc"),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+    }
+
     // MARK: - Teams
 
     func fetchTeams() async throws -> [SupabaseTeam] {
@@ -114,6 +170,21 @@ actor SupabaseService {
     }
 
     // MARK: - Transport
+
+    /// Query a table that may not exist yet. A 404 (table not found) is treated
+    /// as "no data" (empty) so optional features degrade to a "coming soon"
+    /// state instead of surfacing an error.
+    private func optionalTable<Element: Decodable>(
+        table: String,
+        query: [URLQueryItem]
+    ) async throws -> [Element] {
+        do {
+            return try await get(table: table, query: query)
+        } catch let error as ServiceError {
+            if case .http(let code) = error, code == 404 { return [] }
+            throw error
+        }
+    }
 
     private func get<T: Decodable>(table: String, query: [URLQueryItem]) async throws -> T {
         guard SupabaseConfig.isConfigured, let restURL = SupabaseConfig.restURL else {

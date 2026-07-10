@@ -228,7 +228,12 @@ struct RankingsView: View {
                 .padding(.bottom, Theme.Spacing.xs)
 
                 ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
-                    SupabaseRankingRow(rank: index + 1, player: player)
+                    NavigationLink {
+                        SupabasePlayerDetailView(player: player, rank: index + 1)
+                    } label: {
+                        SupabaseRankingRow(rank: index + 1, player: player)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .dsScreenPadding()
