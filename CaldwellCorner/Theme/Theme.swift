@@ -14,11 +14,11 @@ enum Theme {
         static let stroke = Color(hex: 0x252B34)
         static let strokeSoft = Color(hex: 0x1C222A)
 
-        static let accent = Color(hex: 0x2BD46E)          // primary green (single hero accent)
-        static let accentDeep = Color(hex: 0x16A856)
-        static let accentSecondary = Color(hex: 0xE9B949)  // gold (used sparingly: premium)
+        static let accent = Color(hex: 0x8B5CF6)          // Caldwell IQ violet (primary brand accent)
+        static let accentDeep = Color(hex: 0x6D3EE8)
+        static let accentSecondary = Color(hex: 0xE9B949)  // gold (premium / awards)
         static let info = Color(hex: 0x5AA9FF)
-        static let violet = Color(hex: 0x9E86FF)
+        static let violet = Color(hex: 0x8B5CF6)
 
         static let textPrimary = Color(hex: 0xF2F5F8)
         static let textSecondary = Color(hex: 0x9AA7B4)
@@ -162,7 +162,17 @@ extension View {
     }
 }
 
-/// Kept for source compatibility; now a flat dark background.
+/// Dark base with a faint violet glow near the top for subtle lighting/depth.
 struct AppBackground: View {
-    var body: some View { Theme.Colors.background }
+    var body: some View {
+        ZStack {
+            Theme.Colors.background
+            RadialGradient(
+                colors: [Theme.Colors.accent.opacity(0.12), .clear],
+                center: UnitPoint(x: 0.18, y: 0.02), startRadius: 4, endRadius: 340)
+            RadialGradient(
+                colors: [Theme.Colors.info.opacity(0.05), .clear],
+                center: UnitPoint(x: 0.95, y: 0.12), startRadius: 4, endRadius: 300)
+        }
+    }
 }

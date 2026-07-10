@@ -118,10 +118,10 @@ struct PlayerDatabaseView: View {
         }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, 11)
-        .background(Theme.Colors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+        .background(Theme.Colors.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
-            .strokeBorder(Theme.Colors.strokeSoft, lineWidth: 1))
+            .strokeBorder(Theme.Colors.stroke, lineWidth: 1))
     }
 }
 

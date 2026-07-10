@@ -57,7 +57,7 @@ struct ProfileView: View {
                     }
                     Spacer()
                 }
-                .card()
+                .glassCard(radius: 18)
             } else {
                 Button { showPaywall = true } label: {
                     HStack(spacing: Theme.Spacing.md) {
@@ -69,7 +69,7 @@ struct ProfileView: View {
                         Spacer()
                         Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Theme.Colors.textTertiary)
                     }
-                    .card(padding: Theme.Spacing.md)
+                    .glassCard(padding: Theme.Spacing.md, radius: 18)
                 }
             }
         }
@@ -109,7 +109,7 @@ struct ProfileView: View {
                     }
                     Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
                 }
-                .card()
+                .glassCard(radius: 18)
             }
 
             if !badges.isEmpty {
@@ -132,7 +132,7 @@ struct ProfileView: View {
                     Spacer()
                     Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
                 }
-                .card(padding: Theme.Spacing.md)
+                .glassCard(padding: Theme.Spacing.md, radius: 18)
             }
         }
     }

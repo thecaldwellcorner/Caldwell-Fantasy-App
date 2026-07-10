@@ -170,11 +170,14 @@ struct ProgressBar: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.Colors.surfaceElevated)
-                Capsule().fill(tint)
+                Capsule()
+                    .fill(LinearGradient(colors: [tint.opacity(0.85), tint],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .shadow(color: tint.opacity(0.55), radius: 5, y: 0)
                     .frame(width: geo.size.width * CGFloat(animated ? max(0.0, min(1, fraction)) : 0))
             }
         }
-        .frame(height: 7)
+        .frame(height: 8)
         .onAppear { withAnimation(Theme.Anim.spring.delay(0.1)) { animated = true } }
     }
 }
