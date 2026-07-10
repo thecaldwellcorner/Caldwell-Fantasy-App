@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// Loads the async sections of the player card (schedule, projections, recent
-/// stats). The player bio itself is passed in from the tapped row, so it renders
-/// instantly and we never refetch the full players list.
+/// Loads the async sections of the player card (season stats, advanced metrics,
+/// recent games, upcoming schedule). Bio/header render instantly from the
+/// tapped ranked row, so we never refetch the players list.
 @MainActor
 final class PlayerDetailStore: ObservableObject {
+    @Published var weekly: LoadState<[SupabaseWeeklyStat]> = .idle
+    @Published var advanced: LoadState<[AdvancedStat]> = .idle
     @Published var schedule: LoadState<[SupabaseGame]> = .idle
-    @Published var projections: LoadState<[SupabaseProjection]> = .idle
-    @Published var recent: LoadState<[SupabaseWeeklyStat]> = .idle
 
     private let service: SupabaseService
 
@@ -15,11 +15,27 @@ final class PlayerDetailStore: ObservableObject {
         self.service = service
     }
 
-    func loadAll(player: SupabasePlayer) async {
-        async let s: Void = loadSchedule(team: player.team ?? "")
-        async let p: Void = loadProjections(playerId: player.sleeperId)
-        async let r: Void = loadRecent(playerId: player.sleeperId)
-        _ = await (s, p, r)
+    func loadAll(playerId: String, team: String) async {
+        async let w: Void = loadWeekly(playerId: playerId)
+        async let a: Void = loadAdvanced(playerId: playerId)
+        async let s: Void = loadSchedule(team: team)
+        _ = await (w, a, s)
+    }
+
+    func loadWeekly(playerId: String) async {
+        weekly = .loading
+        do {
+            let rows = try await service.fetchWeeklyStats(playerId: playerId)
+            weekly = rows.isEmpty ? .empty : .loaded(rows)
+        } catch { weekly = .failed(message(error)) }
+    }
+
+    func loadAdvanced(playerId: String) async {
+        advanced = .loading
+        do {
+            let rows = try await service.fetchAdvancedStats(playerId: playerId)
+            advanced = rows.isEmpty ? .empty : .loaded(rows)
+        } catch { advanced = .failed(message(error)) }
     }
 
     func loadSchedule(team: String) async {
@@ -27,29 +43,7 @@ final class PlayerDetailStore: ObservableObject {
         do {
             let games = try await service.fetchUpcomingGames(team: team, limit: 5)
             schedule = games.isEmpty ? .empty : .loaded(games)
-        } catch {
-            schedule = .failed(message(error))
-        }
-    }
-
-    func loadProjections(playerId: String) async {
-        projections = .loading
-        do {
-            let rows = try await service.fetchProjection(playerId: playerId)
-            projections = rows.isEmpty ? .empty : .loaded(rows)
-        } catch {
-            projections = .failed(message(error))
-        }
-    }
-
-    func loadRecent(playerId: String) async {
-        recent = .loading
-        do {
-            let rows = try await service.fetchRecentStats(playerId: playerId, limit: 5)
-            recent = rows.isEmpty ? .empty : .loaded(rows)
-        } catch {
-            recent = .failed(message(error))
-        }
+        } catch { schedule = .failed(message(error)) }
     }
 
     private func message(_ error: Error) -> String {
@@ -57,11 +51,8 @@ final class PlayerDetailStore: ObservableObject {
     }
 }
 
-/// Full player card for a Supabase-backed player. Bio renders immediately from
-/// the tapped row; schedule / projections / recent stats load asynchronously and
-/// each show their own loading / empty / error state (never fabricated data).
 struct SupabasePlayerDetailView: View {
-    let player: SupabasePlayer
+    let player: RankedPlayer
     var rank: Int?
 
     @StateObject private var store = PlayerDetailStore()
@@ -71,9 +62,10 @@ struct SupabasePlayerDetailView: View {
             VStack(spacing: Theme.Spacing.lg) {
                 header
                 infoSection
-                projectionSection
-                scheduleSection
+                seasonStatsSection
+                advancedSection
                 recentSection
+                scheduleSection
             }
             .padding(Theme.Spacing.lg)
             .padding(.bottom, Theme.Spacing.xl)
@@ -81,20 +73,10 @@ struct SupabasePlayerDetailView: View {
         .screenBackground()
         .navigationTitle(player.displayName)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await store.loadAll(player: player) }
+        .task { await store.loadAll(playerId: player.playerId, team: player.team ?? "") }
     }
 
     // MARK: - Header
-
-    private var nextProjection: SupabaseProjection? {
-        guard let list = store.projections.value else { return nil }
-        return list.first(where: { ($0.week ?? 0) > 0 }) ?? list.first
-    }
-
-    private var projLabel: String {
-        if let pts = nextProjection?.projFantasyPointsPpr { return String(format: "%.1f", pts) }
-        return "—"
-    }
 
     private var header: some View {
         VStack(spacing: Theme.Spacing.lg) {
@@ -119,7 +101,7 @@ struct SupabasePlayerDetailView: View {
                         if let pos = player.position, !pos.isEmpty {
                             PositionBadge(position: pos)
                         }
-                        Text(headerTeamLine).dsCallout()
+                        Text(player.team?.isEmpty == false ? player.team! : "Free Agent").dsCallout()
                     }
                 }
                 Spacer()
@@ -127,20 +109,11 @@ struct SupabasePlayerDetailView: View {
 
             HStack(spacing: Theme.Spacing.sm) {
                 MetricChip(label: "IQ Rank", value: rank.map { "#\($0)" } ?? "—", tint: Theme.Colors.accent)
-                MetricChip(label: "Proj Pts", value: projLabel, tint: Theme.Colors.accentSecondary)
-                MetricChip(
-                    label: "Status",
-                    value: (player.active ?? false) ? "Active" : "Inactive",
-                    tint: (player.active ?? false) ? Theme.Colors.positive : Theme.Colors.textSecondary
-                )
+                MetricChip(label: "Total Pts", value: fmt0(player.totalFantasyPointsPpr), tint: Theme.Colors.accentSecondary)
+                MetricChip(label: "PPG", value: fmt1(player.fantasyPointsPerGame), tint: Theme.Colors.positive)
             }
         }
         .card(elevated: true)
-    }
-
-    private var headerTeamLine: String {
-        // `players` has no jersey_number column, so we don't show a jersey.
-        player.team?.isEmpty == false ? player.team! : "Free Agent"
     }
 
     // MARK: - Player info
@@ -155,9 +128,9 @@ struct SupabasePlayerDetailView: View {
                 InfoTile(label: "Team", value: player.team?.isEmpty == false ? player.team! : "FA")
                 InfoTile(label: "Position", value: player.position?.isEmpty == false ? player.position! : "—")
                 InfoTile(label: "College", value: "—")
-                InfoTile(label: "Status", value: (player.active ?? false) ? "Active" : "Inactive")
+                InfoTile(label: "Season", value: player.latestSeason.map(String.init) ?? "—")
             }
-            InfoTile(label: "Sleeper ID", value: player.sleeperId)
+            InfoTile(label: "Sleeper ID", value: player.sleeperId ?? "—")
         }
     }
 
@@ -166,40 +139,139 @@ struct SupabasePlayerDetailView: View {
         return w.contains("lb") ? w : "\(w) lb"
     }
 
-    // MARK: - Fantasy projection
+    // MARK: - Season stats (latest completed season)
 
-    private var projectionSection: some View {
-        DetailSection(title: "Fantasy Projection") {
-            switch store.projections {
+    private var latestWeeklyRows: [SupabaseWeeklyStat] {
+        guard let rows = store.weekly.value, let season = rows.compactMap(\.season).max() else { return [] }
+        return rows.filter { $0.season == season }
+    }
+
+    private var seasonStatsSection: some View {
+        DetailSection(title: "Season Stats") {
+            switch store.weekly {
             case .idle, .loading:
                 SectionLoading()
             case .failed(let msg):
-                SectionError(message: msg) { Task { await store.loadProjections(playerId: player.sleeperId) } }
+                SectionError(message: msg) { Task { await store.loadWeekly(playerId: player.playerId) } }
             case .empty:
-                ComingSoon(text: "Projection data coming soon.")
+                ComingSoon(text: "Season stats coming soon.")
             case .loaded:
-                projectionTiles
+                seasonTiles(latestWeeklyRows)
             }
         }
     }
 
-    private var restOfSeasonProjection: SupabaseProjection? {
-        store.projections.value?.first(where: { ($0.week ?? -1) == 0 })
+    private func seasonTiles(_ rows: [SupabaseWeeklyStat]) -> some View {
+        func sum(_ kp: (SupabaseWeeklyStat) -> Double?) -> Double {
+            rows.reduce(0) { $0 + (kp($1) ?? 0) }
+        }
+        let games = rows.count
+        let totalPpr = rows.reduce(0.0) { $0 + ($1.fantasyPointsPpr ?? 0) }
+        let ppg = games > 0 ? totalPpr / Double(games) : 0
+        let pos = (player.position ?? "").uppercased()
+
+        var tiles: [(String, String)] = [
+            ("Games", String(games)),
+            ("Total PPR", String(format: "%.1f", totalPpr)),
+            ("PPG", String(format: "%.1f", ppg)),
+        ]
+        switch pos {
+        case "QB":
+            tiles += [
+                ("Pass Yds", fmt0(sum { $0.passingYards })),
+                ("Pass TD", fmt0(sum { $0.passingTouchdowns })),
+                ("INT", fmt0(sum { $0.interceptions })),
+                ("Rush Yds", fmt0(sum { $0.rushingYards })),
+                ("Rush TD", fmt0(sum { $0.rushingTouchdowns })),
+            ]
+        case "RB":
+            tiles += [
+                ("Rush Yds", fmt0(sum { $0.rushingYards })),
+                ("Rush TD", fmt0(sum { $0.rushingTouchdowns })),
+                ("Rec", fmt0(sum { $0.receptions })),
+                ("Rec Yds", fmt0(sum { $0.receivingYards })),
+                ("Rec TD", fmt0(sum { $0.receivingTouchdowns })),
+            ]
+        default:
+            tiles += [
+                ("Rec", fmt0(sum { $0.receptions })),
+                ("Targets", fmt0(sum { $0.targets })),
+                ("Rec Yds", fmt0(sum { $0.receivingYards })),
+                ("Rec TD", fmt0(sum { $0.receivingTouchdowns })),
+            ]
+        }
+
+        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Spacing.sm) {
+            ForEach(tiles, id: \.0) { tile in
+                InfoTile(label: tile.0, value: tile.1)
+            }
+        }
     }
 
-    private var projectionTiles: some View {
-        VStack(spacing: Theme.Spacing.sm) {
-            HStack(spacing: Theme.Spacing.sm) {
-                InfoTile(label: "Next Game", value: fmt(nextProjection?.projFantasyPointsPpr))
-                InfoTile(label: "Rest of Season", value: fmt(restOfSeasonProjection?.projFantasyPointsPpr))
+    // MARK: - Advanced metrics (only show fields with real values)
+
+    private var advancedSection: some View {
+        DetailSection(title: "Advanced Metrics") {
+            switch store.advanced {
+            case .idle, .loading:
+                SectionLoading()
+            case .failed(let msg):
+                SectionError(message: msg) { Task { await store.loadAdvanced(playerId: player.playerId) } }
+            case .empty:
+                ComingSoon(text: "Advanced metrics coming soon.")
+            case .loaded(let rows):
+                advancedTiles(rows)
             }
-            HStack(spacing: Theme.Spacing.sm) {
-                InfoTile(label: "Floor", value: fmt(nextProjection?.floor))
-                InfoTile(label: "Ceiling", value: fmt(nextProjection?.ceiling))
+        }
+    }
+
+    @ViewBuilder
+    private func advancedTiles(_ rows: [AdvancedStat]) -> some View {
+        let latest = rows.compactMap(\.season).max()
+        let seasonRows = latest == nil ? rows : rows.filter { $0.season == latest }
+        func avg(_ kp: (AdvancedStat) -> Double?) -> Double? {
+            let vals = seasonRows.compactMap(kp)
+            return vals.isEmpty ? nil : vals.reduce(0, +) / Double(vals.count)
+        }
+        let metrics: [(String, Double?, Bool)] = [
+            ("Target Share", avg { $0.targetShare }, true),
+            ("Air Yards Share", avg { $0.airYardsShare }, true),
+            ("Route Part.", avg { $0.routeParticipation }, true),
+            ("YPRR", avg { $0.yardsPerRouteRun }, false),
+            ("EPA/Play", avg { $0.epaPerPlay }, false),
+            ("Success Rate", avg { $0.successRate }, true),
+            ("xFP", avg { $0.expectedFantasyPoints }, false),
+            ("FPOE", avg { $0.fantasyPointsOverExpected }, false),
+        ]
+        let present = metrics.filter { $0.1 != nil }
+        if present.isEmpty {
+            ComingSoon(text: "Advanced metrics coming soon.")
+        } else {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Spacing.sm) {
+                ForEach(present, id: \.0) { metric in
+                    InfoTile(label: metric.0, value: metric.2 ? pct(metric.1) : fmt2(metric.1))
+                }
             }
-            HStack(spacing: Theme.Spacing.sm) {
-                InfoTile(label: "Confidence", value: "—")
-                InfoTile(label: "Matchup", value: "—")
+        }
+    }
+
+    // MARK: - Recent performance (last 5 games)
+
+    private var recentSection: some View {
+        DetailSection(title: "Recent Performance") {
+            switch store.weekly {
+            case .idle, .loading:
+                SectionLoading()
+            case .failed(let msg):
+                SectionError(message: msg) { Task { await store.loadWeekly(playerId: player.playerId) } }
+            case .empty:
+                ComingSoon(text: "Recent game data coming soon.")
+            case .loaded(let rows):
+                VStack(spacing: Theme.Spacing.sm) {
+                    ForEach(rows.prefix(5)) { stat in
+                        RecentStatRow(stat: stat, position: player.position ?? "")
+                    }
+                }
             }
         }
     }
@@ -225,31 +297,12 @@ struct SupabasePlayerDetailView: View {
         }
     }
 
-    // MARK: - Recent performance
+    // MARK: - Formatting
 
-    private var recentSection: some View {
-        DetailSection(title: "Recent Performance") {
-            switch store.recent {
-            case .idle, .loading:
-                SectionLoading()
-            case .failed(let msg):
-                SectionError(message: msg) { Task { await store.loadRecent(playerId: player.sleeperId) } }
-            case .empty:
-                ComingSoon(text: "Recent game data coming soon.")
-            case .loaded(let games):
-                VStack(spacing: Theme.Spacing.sm) {
-                    ForEach(games) { stat in
-                        RecentStatRow(stat: stat, position: player.position ?? "")
-                    }
-                }
-            }
-        }
-    }
-
-    private func fmt(_ value: Double?) -> String {
-        guard let value else { return "—" }
-        return String(format: "%.1f", value)
-    }
+    private func fmt0(_ v: Double?) -> String { v.map { String(format: "%.0f", $0) } ?? "—" }
+    private func fmt1(_ v: Double?) -> String { v.map { String(format: "%.1f", $0) } ?? "—" }
+    private func fmt2(_ v: Double?) -> String { v.map { String(format: "%.2f", $0) } ?? "—" }
+    private func pct(_ v: Double?) -> String { v.map { String(format: "%.0f%%", $0 * 100) } ?? "—" }
 }
 
 // MARK: - Reusable section building blocks
@@ -341,8 +394,7 @@ private struct ScheduleRow: View {
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(Theme.Colors.textTertiary)
                 .frame(width: 44, alignment: .leading)
-            Text(matchupText)
-                .dsCardTitle()
+            Text(matchupText).dsCardTitle()
             Spacer()
             if let date = kickoffText {
                 Text(date).dsCaption()
@@ -360,10 +412,13 @@ private struct ScheduleRow: View {
     }
 
     private var kickoffText: String? {
-        guard let iso = game.kickoff,
-              let date = ISO8601DateFormatter().date(from: iso) else { return nil }
+        guard let iso = game.kickoffAt else { return nil }
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = parser.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+        guard let date else { return nil }
         let f = DateFormatter()
-        f.dateFormat = "MMM d"
+        f.dateFormat = "MMM d, h:mm a"
         return f.string(from: date)
     }
 }
@@ -398,11 +453,11 @@ private struct RecentStatRow: View {
         func i(_ v: Double?) -> Int { Int(v ?? 0) }
         switch position.uppercased() {
         case "QB":
-            return "\(i(stat.passingYards)) pass yd · \(i(stat.passingTds)) TD · \(i(stat.rushingYards)) rush yd"
+            return "\(i(stat.passingYards)) pass yd · \(i(stat.passingTouchdowns)) TD · \(i(stat.rushingYards)) rush yd"
         case "RB":
-            return "\(i(stat.rushingYards)) rush yd · \(i(stat.rushingTds)) TD · \(i(stat.receptions)) rec"
+            return "\(i(stat.rushingYards)) rush yd · \(i(stat.rushingTouchdowns)) TD · \(i(stat.receptions)) rec"
         default:
-            return "\(i(stat.receptions)) rec · \(i(stat.receivingYards)) yd · \(i(stat.receivingTds)) TD"
+            return "\(i(stat.receptions)) rec · \(i(stat.receivingYards)) yd · \(i(stat.receivingTouchdowns)) TD"
         }
     }
 }
