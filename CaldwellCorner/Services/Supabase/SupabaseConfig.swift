@@ -14,8 +14,8 @@ import Foundation
 enum SupabaseConfig {
     /// Fallbacks — replace with your project's values, or leave as-is and set
     /// the `Info.plist` keys instead. Find both in Supabase → Project Settings → API.
-    private static let fallbackURL = "https://YOUR_PROJECT_REF.supabase.co"
-    private static let fallbackAnonKey = "YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY"
+    private static let fallbackURL = "https://fdorltyavakmhpmowawf.supabase.co"
+    private static let fallbackAnonKey = "sb_publishable_Z_zLCaa6l-y_d3pjLDJnEg_hRmFmlvf"
 
     static var baseURL: String {
         envValue("SUPABASE_URL") ?? infoValue("SUPABASE_URL") ?? fallbackURL
