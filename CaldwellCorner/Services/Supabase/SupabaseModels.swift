@@ -70,6 +70,102 @@ struct SupabaseTeam: Identifiable, Codable, Hashable {
     }
 }
 
+/// A scheduled/played game from the optional `games` table.
+struct SupabaseGame: Identifiable, Codable, Hashable {
+    var gameId: String
+    var season: Int?
+    var week: Int?
+    var seasonType: String?
+    var homeTeam: String?
+    var awayTeam: String?
+    var kickoff: String?
+    var status: String?
+    var homeScore: Int?
+    var awayScore: Int?
+
+    var id: String { gameId }
+
+    /// The opponent for a given team, or nil if this game doesn't involve them.
+    func opponent(for team: String) -> String? {
+        if homeTeam == team { return awayTeam }
+        if awayTeam == team { return homeTeam }
+        return nil
+    }
+
+    func isHome(for team: String) -> Bool { homeTeam == team }
+
+    enum CodingKeys: String, CodingKey {
+        case gameId = "game_id"
+        case season
+        case week
+        case seasonType = "season_type"
+        case homeTeam = "home_team"
+        case awayTeam = "away_team"
+        case kickoff
+        case status
+        case homeScore = "home_score"
+        case awayScore = "away_score"
+    }
+}
+
+/// A projection row from the optional `player_projections` table.
+struct SupabaseProjection: Identifiable, Codable, Hashable {
+    var playerId: String
+    var season: Int?
+    var week: Int?
+    var projFantasyPointsPpr: Double?
+    var projFantasyPointsHalfPpr: Double?
+    var projFantasyPointsStandard: Double?
+    var floor: Double?
+    var ceiling: Double?
+
+    var id: String { "\(playerId)-\(season ?? 0)-\(week ?? 0)" }
+
+    enum CodingKeys: String, CodingKey {
+        case playerId = "player_id"
+        case season
+        case week
+        case projFantasyPointsPpr = "proj_fantasy_points_ppr"
+        case projFantasyPointsHalfPpr = "proj_fantasy_points_half_ppr"
+        case projFantasyPointsStandard = "proj_fantasy_points_standard"
+        case floor
+        case ceiling
+    }
+}
+
+/// A weekly box-score row from the optional `player_weekly_stats` table.
+struct SupabaseWeeklyStat: Identifiable, Codable, Hashable {
+    var playerId: String
+    var season: Int?
+    var week: Int?
+    var opponent: String?
+    var passingYards: Double?
+    var passingTds: Double?
+    var rushingYards: Double?
+    var rushingTds: Double?
+    var receptions: Double?
+    var receivingYards: Double?
+    var receivingTds: Double?
+    var fantasyPointsPpr: Double?
+
+    var id: String { "\(playerId)-\(season ?? 0)-\(week ?? 0)" }
+
+    enum CodingKeys: String, CodingKey {
+        case playerId = "player_id"
+        case season
+        case week
+        case opponent
+        case passingYards = "passing_yards"
+        case passingTds = "passing_tds"
+        case rushingYards = "rushing_yards"
+        case rushingTds = "rushing_tds"
+        case receptions
+        case receivingYards = "receiving_yards"
+        case receivingTds = "receiving_tds"
+        case fantasyPointsPpr = "fantasy_points_ppr"
+    }
+}
+
 /// Generic UI state for an async load: covers loading, empty, error, and success
 /// so views can render the right thing for each case.
 enum LoadState<Value>: Equatable where Value: Equatable {
