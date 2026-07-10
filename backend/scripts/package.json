@@ -1,0 +1,19 @@
+{
+  "name": "caldwell-iq-import-players",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "import": "node importPlayers.js",
+    "import:players": "node importPlayers.js",
+    "import:schedule": "node importSchedule.js",
+    "import:weekly": "node importWeeklyStats.js",
+    "import:advanced": "node importAdvancedStats.js",
+    "import:projections": "node importProjections.js",
+    "import:images": "node importPlayerImages.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5"
+  }
+}
