@@ -57,11 +57,20 @@ final class PlayerRankingsStore: ObservableObject {
                 activeOnly: true,
                 limit: 1000
             )
+            #if DEBUG
+            print("✅ Supabase connected successfully")
+            print("👥 Players loaded: \(players.count)")
+            let firstFive = players.prefix(5).map { $0.displayName }.joined(separator: ", ")
+            print("📋 First 5 players: \(firstFive.isEmpty ? "—" : firstFive)")
+            #endif
             state = players.isEmpty ? .empty : .loaded(players)
         } catch {
             let message =
                 (error as? SupabaseService.ServiceError)?.errorDescription
                 ?? error.localizedDescription
+            #if DEBUG
+            print("❌ Supabase load failed: \(message)")
+            #endif
             state = .failed(message)
         }
     }
