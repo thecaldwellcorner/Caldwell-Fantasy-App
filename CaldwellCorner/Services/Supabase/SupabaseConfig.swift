@@ -14,16 +14,16 @@ import Foundation
 enum SupabaseConfig {
     /// Fallbacks — replace with your project's values, or leave as-is and set
     /// the `Info.plist` keys instead. Find both in Supabase → Project Settings → API.
-    private static let fallbackURL = "https://YOUR_PROJECT_REF.supabase.co"
-    private static let fallbackAnonKey = "YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY"
+    private static let fallbackURL = "https://fdorltyavakmhpmowawf.supabase.co"
+    private static let fallbackAnonKey = "sb_publishable_Z_zLCaa6l-y_d3pjLDJnEg_hRmFmlvf"
 
     static var baseURL: String {
-        infoValue("SUPABASE_URL") ?? fallbackURL
+        envValue("SUPABASE_URL") ?? infoValue("SUPABASE_URL") ?? fallbackURL
     }
 
     /// The public anon/publishable key. NOT the service_role key.
     static var anonKey: String {
-        infoValue("SUPABASE_ANON_KEY") ?? fallbackAnonKey
+        envValue("SUPABASE_ANON_KEY") ?? infoValue("SUPABASE_ANON_KEY") ?? fallbackAnonKey
     }
 
     /// The PostgREST base, e.g. `https://xyz.supabase.co/rest/v1`.
@@ -46,6 +46,12 @@ enum SupabaseConfig {
 
     private static func infoValue(_ key: String) -> String? {
         guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func envValue(_ key: String) -> String? {
+        guard let value = ProcessInfo.processInfo.environment[key] else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
