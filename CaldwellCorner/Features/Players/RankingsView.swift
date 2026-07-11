@@ -33,8 +33,8 @@ enum RankFilter: String, CaseIterable, Identifiable {
 }
 
 /// Supabase-backed store for Player Rankings. Loads the top fantasy-relevant
-/// players from the `player_rankings` view (ranked by relevance, not
-/// alphabetically) and exposes a `LoadState` for loading / empty / error.
+/// players (ranked by an on-device relevance score, not alphabetically) and
+/// exposes a `LoadState` for loading / empty / error.
 @MainActor
 final class PlayerRankingsStore: ObservableObject {
     @Published var state: LoadState<[RankedPlayer]> = .idle
@@ -249,9 +249,11 @@ struct RankingsView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .tracksBottomNavScroll()
             .dsScreenPadding()
-            .padding(.bottom, Theme.Spacing.xl)
+            .padding(.bottom, Theme.Spacing.xxl)
         }
+        .coordinateSpace(name: "bottomNavScroll")
         .refreshable { await store.load() }
     }
 }

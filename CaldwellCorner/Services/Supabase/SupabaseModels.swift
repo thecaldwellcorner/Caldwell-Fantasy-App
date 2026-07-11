@@ -70,8 +70,9 @@ struct SupabaseTeam: Identifiable, Codable, Hashable {
     }
 }
 
-/// A row from the `player_rankings` view: an eligible active QB/RB/WR/TE with
-/// aggregated latest-season stats and a data-driven relevance score.
+/// An eligible active QB/RB/WR/TE with aggregated latest-season stats and a
+/// data-driven relevance score (computed on-device from `players` +
+/// `player_weekly_stats`).
 struct RankedPlayer: Identifiable, Codable, Hashable {
     var playerId: String            // players.id (uuid) — used to join stats
     var sleeperId: String?

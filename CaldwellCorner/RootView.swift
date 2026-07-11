@@ -1,4 +1,25 @@
+import Combine
 import SwiftUI
+import UIKit
+
+/// Reports a scroll view's top offset up the view tree so `RootView` can
+/// auto-hide the bottom navigation on scroll. Screens opt in with
+/// `.tracksBottomNavScroll()`.
+struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+extension View {
+    /// Attach to a `ScrollView`'s content to drive bottom-nav auto-hide.
+    func tracksBottomNavScroll(space: String = "bottomNavScroll") -> some View {
+        background(
+            GeometryReader { geo in
+                Color.clear.preference(key: ScrollOffsetKey.self, value: geo.frame(in: .named(space)).minY)
+            }
+        )
+    }
+}
 
 enum RootTab: String, CaseIterable, Identifiable {
     case home, coach, matchup, league, rank, reels
@@ -31,16 +52,74 @@ struct RootView: View {
     @State private var selectedTab: RootTab = .home
     @State private var showPaywall = false
 
+    // Bottom-nav auto-hide state.
+    @State private var keyboardVisible = false
+    @State private var scrollHidden = false
+    @State private var lastOffset: CGFloat = 0
+    @State private var idleShowTask: Task<Void, Never>?
+
+    private var navHidden: Bool { keyboardVisible || scrollHidden }
+
+    private var keyboardPublisher: AnyPublisher<Bool, Never> {
+        Publishers.Merge(
+            NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification).map { _ in true },
+            NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification).map { _ in false }
+        )
+        .eraseToAnyPublisher()
+    }
+
     var body: some View {
         content
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CaldwellTabBar(selection: $selectedTab)
+                if !navHidden {
+                    CaldwellTabBar(selection: $selectedTab)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .onPreferenceChange(ScrollOffsetKey.self) { offset in
+                handleScroll(offset)
+            }
+            .onReceive(keyboardPublisher) { visible in
+                withAnimation(Theme.Anim.snappy) { keyboardVisible = visible }
+            }
+            .onChange(of: selectedTab) { _, _ in
+                idleShowTask?.cancel()
+                lastOffset = 0
+                withAnimation(Theme.Anim.snappy) { scrollHidden = false }
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
+    }
+
+    /// Hide on downward scroll, show on upward scroll, near the top, or when
+    /// scrolling stops.
+    private func handleScroll(_ offset: CGFloat) {
+        let delta = offset - lastOffset
+        lastOffset = offset
+
+        if offset > -24 {
+            if scrollHidden { withAnimation(Theme.Anim.snappy) { scrollHidden = false } }
+            scheduleIdleShow()
+            return
+        }
+        guard abs(delta) > 6 else { scheduleIdleShow(); return }  // ignore jitter / bounce
+        let scrollingDown = delta < 0  // content moves up as the user scrolls down
+        if scrollingDown != scrollHidden {
+            withAnimation(Theme.Anim.snappy) { scrollHidden = scrollingDown }
+        }
+        scheduleIdleShow()
+    }
+
+    private func scheduleIdleShow() {
+        idleShowTask?.cancel()
+        idleShowTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 550_000_000)
+            if Task.isCancelled { return }
+            if scrollHidden { withAnimation(Theme.Anim.snappy) { scrollHidden = false } }
+        }
     }
 
     @ViewBuilder
