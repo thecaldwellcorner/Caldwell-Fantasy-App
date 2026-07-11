@@ -117,7 +117,7 @@ actor SupabaseService {
         return rows.first
     }
 
-    // MARK: - Rankings (the `player_rankings` view)
+    // MARK: - Rankings (computed on-device from players + player_weekly_stats)
 
     private static let fantasyPositions = ["QB", "RB", "WR", "TE"]
 
