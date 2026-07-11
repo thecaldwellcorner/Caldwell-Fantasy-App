@@ -117,6 +117,8 @@ struct SupabaseGame: Identifiable, Codable, Hashable {
     var week: Int?
     var homeTeam: String?
     var awayTeam: String?
+    var homeScore: Int?
+    var awayScore: Int?
     var kickoffAt: String?
     var status: String?
     var venue: String?
@@ -139,6 +141,8 @@ struct SupabaseGame: Identifiable, Codable, Hashable {
         case week
         case homeTeam = "home_team"
         case awayTeam = "away_team"
+        case homeScore = "home_score"
+        case awayScore = "away_score"
         case kickoffAt = "kickoff_at"
         case status
         case venue
