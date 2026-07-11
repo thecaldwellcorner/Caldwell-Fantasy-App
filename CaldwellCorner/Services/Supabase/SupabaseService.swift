@@ -20,7 +20,7 @@ actor SupabaseService {
     enum ServiceError: LocalizedError {
         case notConfigured
         case badURL
-        case http(Int)
+        case http(status: Int, resource: String, body: String)
         case transport(Error)
         case decoding(Error)
 
@@ -30,8 +30,9 @@ actor SupabaseService {
                 return "Supabase isn't configured. Add your project URL and anon key in SupabaseConfig."
             case .badURL:
                 return "Could not build a valid Supabase request URL."
-            case .http(let code):
-                return "Supabase request failed (HTTP \(code))."
+            case .http(let status, let resource, let body):
+                let detail = body.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200)
+                return "Supabase request failed (HTTP \(status)) for \(resource).\(detail.isEmpty ? "" : " \(detail)")"
             case .transport(let error):
                 return "Network error: \(error.localizedDescription)"
             case .decoding:
@@ -118,9 +119,13 @@ actor SupabaseService {
 
     // MARK: - Rankings (the `player_rankings` view)
 
-    /// Fetch fantasy-relevant, active QB/RB/WR/TE ranked by relevance score.
-    /// - When `search` is empty, only players with production this season are
-    ///   returned (games_played > 0), sorted by relevance.
+    private static let fantasyPositions = ["QB", "RB", "WR", "TE"]
+
+    /// Fetch fantasy-relevant, active QB/RB/WR/TE ranked by a relevance score
+    /// computed on-device from the EXISTING tables (`players` +
+    /// `player_weekly_stats`) — no SQL view or RPC required.
+    /// - When `search` is empty, only players with production in the latest
+    ///   season are returned, sorted by relevance.
     /// - When `search` is set, the full eligible active-player pool is searched
     ///   (even players without stats), so any active QB/RB/WR/TE is findable.
     func fetchRankedPlayers(
@@ -128,21 +133,106 @@ actor SupabaseService {
         search: String? = nil,
         limit: Int = 300
     ) async throws -> [RankedPlayer] {
-        var query: [URLQueryItem] = [
-            URLQueryItem(name: "select", value: "*"),
-            URLQueryItem(name: "order", value: "relevance_score.desc.nullslast"),
-            URLQueryItem(name: "limit", value: String(limit)),
-        ]
-        if let positions, !positions.isEmpty {
-            query.append(URLQueryItem(name: "position", value: "in.(\(positions.joined(separator: ",")))"))
-        }
         let term = (search ?? "").trimmingCharacters(in: .whitespaces)
-        if term.isEmpty {
-            query.append(URLQueryItem(name: "games_played", value: "gt.0"))
-        } else {
-            query.append(URLQueryItem(name: "full_name", value: "ilike.*\(term)*"))
+        let requested = (positions?.isEmpty == false) ? Set(positions!) : Set(Self.fantasyPositions)
+
+        // 1) Latest season that actually has weekly stats.
+        let latestSeason = try await latestStatsSeason()
+
+        // 2) Eligible active fantasy players (QB/RB/WR/TE, real team). Two `team`
+        //    filters are AND-ed by PostgREST.
+        var playerQuery: [URLQueryItem] = [
+            URLQueryItem(name: "select", value: "id,sleeper_id,full_name,position,team,age,height,weight"),
+            URLQueryItem(name: "active", value: "eq.true"),
+            URLQueryItem(name: "team", value: "not.is.null"),
+            URLQueryItem(name: "team", value: "neq.FA"),
+            URLQueryItem(name: "position", value: "in.(\(Self.fantasyPositions.joined(separator: ",")))"),
+            URLQueryItem(name: "order", value: "id.asc"),
+        ]
+        if !term.isEmpty {
+            playerQuery.append(URLQueryItem(name: "full_name", value: "ilike.*\(term)*"))
         }
-        return try await get(table: "player_rankings", query: query)
+        let players: [RankPlayerRow] = try await getAllPages(table: "players", query: playerQuery)
+
+        // 3) Aggregate latest-season weekly stats per player.
+        var totals: [String: (ppr: Double, games: Int, usage: Double)] = [:]
+        if let season = latestSeason {
+            let stats: [RankWeeklyRow] = try await getAllPages(
+                table: "player_weekly_stats",
+                query: [
+                    URLQueryItem(name: "select", value: "id,player_id,fantasy_points_ppr,rushing_attempts,targets,receptions"),
+                    URLQueryItem(name: "season", value: "eq.\(season)"),
+                    URLQueryItem(name: "order", value: "id.asc"),
+                ]
+            )
+            for s in stats {
+                guard let pid = s.playerId else { continue }
+                var t = totals[pid] ?? (0, 0, 0)
+                t.ppr += s.fantasyPointsPpr ?? 0
+                t.games += 1
+                t.usage += (s.rushingAttempts ?? 0) + (s.targets ?? 0) + (s.receptions ?? 0)
+                totals[pid] = t
+            }
+        }
+
+        // 4) Combine, normalize across the pool, and score.
+        struct Scored { let p: RankPlayerRow; let ppr: Double; let games: Int; let ppg: Double; let usage: Double }
+        let combined: [Scored] = players.map { p in
+            let t = totals[p.id] ?? (0, 0, 0)
+            return Scored(p: p, ppr: t.ppr, games: t.games, ppg: t.games > 0 ? t.ppr / Double(t.games) : 0, usage: t.usage)
+        }
+        let maxPpr = combined.map(\.ppr).max() ?? 0
+        let maxPpg = combined.map(\.ppg).max() ?? 0
+        let maxGames = Double(combined.map(\.games).max() ?? 0)
+        let maxUsage = combined.map(\.usage).max() ?? 0
+        func norm(_ value: Double, _ maxValue: Double) -> Double { maxValue > 0 ? value / maxValue : 0 }
+
+        var ranked: [RankedPlayer] = combined.map { s in
+            let score = (0.5 * norm(s.ppr, maxPpr)
+                + 0.2 * norm(s.ppg, maxPpg)
+                + 0.1 * norm(Double(s.games), maxGames)
+                + 0.1 * norm(s.usage, maxUsage)
+                + 0.1) * 100
+            return RankedPlayer(
+                playerId: s.p.id,
+                sleeperId: s.p.sleeperId,
+                fullName: s.p.fullName ?? "",
+                position: s.p.position,
+                team: s.p.team,
+                age: s.p.age,
+                height: s.p.height,
+                weight: s.p.weight,
+                latestSeason: latestSeason,
+                totalFantasyPointsPpr: (s.ppr * 10).rounded() / 10,
+                gamesPlayed: s.games,
+                fantasyPointsPerGame: (s.ppg * 10).rounded() / 10,
+                recentUsage: s.usage,
+                relevanceScore: (score * 100).rounded() / 100
+            )
+        }
+
+        // 5) Apply the requested position filter, then the default-pool rule.
+        if requested.count != Self.fantasyPositions.count {
+            ranked = ranked.filter { requested.contains(($0.position ?? "").uppercased()) }
+        }
+        if term.isEmpty {
+            ranked = ranked.filter { ($0.gamesPlayed ?? 0) > 0 }
+        }
+        ranked.sort { ($0.relevanceScore ?? 0) > ($1.relevanceScore ?? 0) }
+        return Array(ranked.prefix(limit))
+    }
+
+    /// The most recent season that has any weekly stats.
+    private func latestStatsSeason() async throws -> Int? {
+        let rows: [RankSeasonRow] = try await get(
+            table: "player_weekly_stats",
+            query: [
+                URLQueryItem(name: "select", value: "season"),
+                URLQueryItem(name: "order", value: "season.desc"),
+                URLQueryItem(name: "limit", value: "1"),
+            ]
+        )
+        return rows.first?.season
     }
 
     // MARK: - Detail data (keyed by the player's uuid `player_id`)
@@ -212,9 +302,31 @@ actor SupabaseService {
         do {
             return try await get(table: table, query: query)
         } catch let error as ServiceError {
-            if case .http(let code) = error, code == 404 { return [] }
+            if case .http(let status, _, _) = error, status == 404 { return [] }
             throw error
         }
+    }
+
+    /// Fetch every row of a query by paging past Supabase's per-request row cap
+    /// (1000). Requires a stable `order` in `query` for correct paging.
+    private func getAllPages<Element: Decodable>(
+        table: String,
+        query: [URLQueryItem],
+        pageSize: Int = 1000,
+        maxPages: Int = 60
+    ) async throws -> [Element] {
+        var all: [Element] = []
+        var offset = 0
+        for _ in 0..<maxPages {
+            var paged = query
+            paged.append(URLQueryItem(name: "limit", value: String(pageSize)))
+            paged.append(URLQueryItem(name: "offset", value: String(offset)))
+            let page: [Element] = try await get(table: table, query: paged)
+            all.append(contentsOf: page)
+            if page.count < pageSize { break }
+            offset += pageSize
+        }
+        return all
     }
 
     private func get<T: Decodable>(table: String, query: [URLQueryItem]) async throws -> T {
@@ -229,6 +341,10 @@ actor SupabaseService {
         }
         comps.queryItems = query
         guard let url = comps.url else { throw ServiceError.badURL }
+
+        #if DEBUG
+        print("➡️ Supabase GET table=\(table) path=/rest/v1/\(table) url=\(url.absoluteString)")
+        #endif
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -245,7 +361,11 @@ actor SupabaseService {
             throw ServiceError.transport(error)
         }
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw ServiceError.http(http.statusCode)
+            let body = String(data: data, encoding: .utf8) ?? ""
+            #if DEBUG
+            print("❌ Supabase HTTP \(http.statusCode) for resource=\(table)\n   body=\(body.prefix(300))")
+            #endif
+            throw ServiceError.http(status: http.statusCode, resource: table, body: body)
         }
         do {
             return try decoder.decode(T.self, from: data)
@@ -254,3 +374,39 @@ actor SupabaseService {
         }
     }
 }
+
+// MARK: - Lightweight decode rows for client-side ranking aggregation
+
+private struct RankPlayerRow: Decodable {
+    let id: String
+    let sleeperId: String?
+    let fullName: String?
+    let position: String?
+    let team: String?
+    let age: Int?
+    let height: String?
+    let weight: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, position, team, age, height, weight
+        case sleeperId = "sleeper_id"
+        case fullName = "full_name"
+    }
+}
+
+private struct RankWeeklyRow: Decodable {
+    let playerId: String?
+    let fantasyPointsPpr: Double?
+    let rushingAttempts: Double?
+    let targets: Double?
+    let receptions: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case playerId = "player_id"
+        case fantasyPointsPpr = "fantasy_points_ppr"
+        case rushingAttempts = "rushing_attempts"
+        case targets, receptions
+    }
+}
+
+private struct RankSeasonRow: Decodable { let season: Int? }
