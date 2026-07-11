@@ -1,22 +1,27 @@
--- Caldwell IQ — Sleeper league connection (migration 003)
+-- Caldwell IQ — Sleeper league connection (migration 003, AUTH-SCOPED)
 --
--- Run once in the Supabase SQL editor. Stores a connected Sleeper account, the
--- user's leagues, and the imported rosters. The iOS app writes these with the
--- publishable (anon) key under the permissive RLS policies below (there is no
--- per-user auth yet). NEVER put the service-role key in the app.
+-- Requires Supabase Auth. The iOS app keeps the PUBLISHABLE key but must have a
+-- signed-in Supabase user before syncing/reading leagues; `app_user_id` must be
+-- that user's id (auth.uid()). RLS then limits every row to its owner.
 --
--- NOTE: an earlier data-layer migration may have created differently-shaped
--- `fantasy_leagues` / `fantasy_rosters` tables (keyed by text ids). Those were
--- never populated. If they exist, drop them first (uncomment) before running:
---   drop table if exists fantasy_rosters cascade;
---   drop table if exists fantasy_leagues cascade;
+-- Safe to re-run: tables use CREATE TABLE IF NOT EXISTS; policies are dropped
+-- and recreated. No tables are dropped.
+--
+-- NOTE: `fantasy_league_users` and `fantasy_roster_players` are intentionally
+-- NOT created — the current integration stores each roster's players/starters/
+-- reserve/taxi as JSONB on `fantasy_rosters` and matches those Sleeper IDs to
+-- `players.sleeper_id` at read time, so no separate join tables are needed yet.
+--
+-- If a prior data-layer migration created differently-shaped, UNPOPULATED
+-- `fantasy_leagues` / `fantasy_rosters` tables, reconcile them manually before
+-- running (this migration never drops tables).
 
 create extension if not exists pgcrypto;
 
--- 1. connected_fantasy_accounts ---------------------------------------------
+-- 1. connected_fantasy_accounts --------------------------------------------
 create table if not exists connected_fantasy_accounts (
     id                uuid primary key default gen_random_uuid(),
-    app_user_id       uuid not null,
+    app_user_id       uuid not null references auth.users(id) on delete cascade,
     platform          text not null,
     platform_user_id  text not null,
     platform_username text,
@@ -28,10 +33,10 @@ create table if not exists connected_fantasy_accounts (
 );
 create index if not exists idx_cfa_app_user on connected_fantasy_accounts (app_user_id);
 
--- 2. fantasy_leagues ---------------------------------------------------------
+-- 2. fantasy_leagues --------------------------------------------------------
 create table if not exists fantasy_leagues (
     id                 uuid primary key default gen_random_uuid(),
-    app_user_id        uuid not null,
+    app_user_id        uuid not null references auth.users(id) on delete cascade,
     platform           text not null,
     platform_league_id text not null,
     name               text,
@@ -46,7 +51,7 @@ create table if not exists fantasy_leagues (
 );
 create index if not exists idx_fl_app_user on fantasy_leagues (app_user_id);
 
--- 3. fantasy_rosters ---------------------------------------------------------
+-- 3. fantasy_rosters --------------------------------------------------------
 create table if not exists fantasy_rosters (
     id                 uuid primary key default gen_random_uuid(),
     fantasy_league_id  uuid not null references fantasy_leagues(id) on delete cascade,
@@ -62,20 +67,44 @@ create table if not exists fantasy_rosters (
 );
 create index if not exists idx_fr_league on fantasy_rosters (fantasy_league_id);
 
--- RLS — permissive (no per-user auth yet). Reads/writes use the publishable key.
+-- Row Level Security --------------------------------------------------------
 alter table connected_fantasy_accounts enable row level security;
 alter table fantasy_leagues enable row level security;
 alter table fantasy_rosters enable row level security;
 
-do $$
-begin
-    if not exists (select 1 from pg_policies where tablename = 'connected_fantasy_accounts' and policyname = 'anon all cfa') then
-        create policy "anon all cfa" on connected_fantasy_accounts for all to anon using (true) with check (true);
-    end if;
-    if not exists (select 1 from pg_policies where tablename = 'fantasy_leagues' and policyname = 'anon all fl') then
-        create policy "anon all fl" on fantasy_leagues for all to anon using (true) with check (true);
-    end if;
-    if not exists (select 1 from pg_policies where tablename = 'fantasy_rosters' and policyname = 'anon all fr') then
-        create policy "anon all fr" on fantasy_rosters for all to anon using (true) with check (true);
-    end if;
-end $$;
+-- Remove any prior permissive/owner policies (rerun-safe).
+drop policy if exists "anon all cfa" on connected_fantasy_accounts;
+drop policy if exists "anon all fl" on fantasy_leagues;
+drop policy if exists "anon all fr" on fantasy_rosters;
+drop policy if exists "own connected accounts" on connected_fantasy_accounts;
+drop policy if exists "own leagues" on fantasy_leagues;
+drop policy if exists "own rosters" on fantasy_rosters;
+
+-- Owner-scoped access for signed-in users only.
+create policy "own connected accounts" on connected_fantasy_accounts
+    for all to authenticated
+    using (app_user_id = auth.uid())
+    with check (app_user_id = auth.uid());
+
+create policy "own leagues" on fantasy_leagues
+    for all to authenticated
+    using (app_user_id = auth.uid())
+    with check (app_user_id = auth.uid());
+
+-- A roster is accessible only when its parent league belongs to the caller.
+create policy "own rosters" on fantasy_rosters
+    for all to authenticated
+    using (
+        exists (
+            select 1 from fantasy_leagues fl
+            where fl.id = fantasy_rosters.fantasy_league_id
+              and fl.app_user_id = auth.uid()
+        )
+    )
+    with check (
+        exists (
+            select 1 from fantasy_leagues fl
+            where fl.id = fantasy_rosters.fantasy_league_id
+              and fl.app_user_id = auth.uid()
+        )
+    );
