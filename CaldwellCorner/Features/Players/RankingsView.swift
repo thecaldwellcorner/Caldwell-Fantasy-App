@@ -249,11 +249,9 @@ struct RankingsView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .tracksBottomNavScroll()
             .dsScreenPadding()
-            .padding(.bottom, Theme.Spacing.xxl)
+            .padding(.bottom, Theme.Spacing.xl)
         }
-        .coordinateSpace(name: "bottomNavScroll")
         .refreshable { await store.load() }
     }
 }
