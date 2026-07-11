@@ -44,8 +44,12 @@ struct AIAssistantView: View {
                 }
             }
 
-            if !state.isPremium { usageBar }
-            inputBar
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                if !state.isPremium { usageBar }
+                inputBar
+            }
         }
         .screenBackground()
         .toolbar(.hidden, for: .navigationBar)
@@ -195,11 +199,9 @@ struct AIAssistantView: View {
         state.registerAIUsage()
         isThinking = true
 
-        let metrics = state.playerMetrics
-        let pool = state.metricsForWaiverPool()
-        let ctx = state.engineContext
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            let answer = AIAssistant.answer(to: trimmed, metrics: metrics, waiverPool: pool, context: ctx)
+        // Grounded in real Supabase data via GroundedCoach (no mock/canned logic).
+        Task {
+            let answer = await GroundedCoach.shared.answer(to: trimmed)
             isThinking = false
             messages.append(ChatMessage(role: .assistant, text: answer.finalCall, answer: answer))
         }
