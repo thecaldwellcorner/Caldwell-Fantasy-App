@@ -26,7 +26,9 @@ struct CaldwellCornerApp: App {
         let title = UIColor(Theme.Colors.textPrimary)
 
         let tab = UITabBarAppearance()
-        tab.configureWithDefaultBackground()   // native system material
+        tab.configureWithOpaqueBackground()               // solid dark, not floating material
+        tab.backgroundColor = UIColor(Theme.Colors.surface)
+        tab.shadowColor = UIColor(Theme.Colors.stroke)    // thin top divider
         for item in [tab.stackedLayoutAppearance, tab.inlineLayoutAppearance, tab.compactInlineLayoutAppearance] {
             item.normal.iconColor = unselected
             item.normal.titleTextAttributes = [.foregroundColor: unselected,
