@@ -222,6 +222,50 @@ actor SupabaseService {
         return Array(ranked.prefix(limit))
     }
 
+    /// Resolve active fantasy players (QB/RB/WR/TE) whose name matches a phrase.
+    /// Cheap query (no stat aggregation) used by the AI Coach to identify the
+    /// players a user mentions. Returns lightweight bio rows with the uuid id.
+    func findPlayers(nameLike: String, limit: Int = 6) async throws -> [RankedPlayer] {
+        let term = nameLike.trimmingCharacters(in: .whitespaces)
+        guard term.count >= 2 else { return [] }
+        let rows: [RankPlayerRow] = try await get(
+            table: "players",
+            query: [
+                URLQueryItem(name: "select", value: "id,sleeper_id,full_name,position,team,age,height,weight"),
+                URLQueryItem(name: "full_name", value: "ilike.*\(term)*"),
+                URLQueryItem(name: "active", value: "eq.true"),
+                URLQueryItem(name: "team", value: "not.is.null"),
+                URLQueryItem(name: "team", value: "neq.FA"),
+                URLQueryItem(name: "position", value: "in.(\(Self.fantasyPositions.joined(separator: ",")))"),
+                URLQueryItem(name: "order", value: "full_name.asc"),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+        return rows.map {
+            RankedPlayer(
+                playerId: $0.id, sleeperId: $0.sleeperId, fullName: $0.fullName ?? "",
+                position: $0.position, team: $0.team, age: $0.age, height: $0.height, weight: $0.weight,
+                latestSeason: nil, totalFantasyPointsPpr: nil, gamesPlayed: nil,
+                fantasyPointsPerGame: nil, recentUsage: nil, relevanceScore: nil
+            )
+        }
+    }
+
+    /// True if any projection rows exist for a player (so the Coach never
+    /// pretends projections exist when the table is empty).
+    func hasProjections(playerId: String) async -> Bool {
+        struct Row: Decodable { let player_id: String? }
+        let rows: [Row] = (try? await optionalTable(
+            table: "player_projections",
+            query: [
+                URLQueryItem(name: "select", value: "player_id"),
+                URLQueryItem(name: "player_id", value: "eq.\(playerId)"),
+                URLQueryItem(name: "limit", value: "1"),
+            ]
+        )) ?? []
+        return !rows.isEmpty
+    }
+
     /// The most recent season that has any weekly stats.
     private func latestStatsSeason() async throws -> Int? {
         let rows: [RankSeasonRow] = try await get(
