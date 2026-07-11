@@ -264,6 +264,22 @@ actor SupabaseService {
         )
     }
 
+    /// All games for a team in a season (used to derive home/away + opponent for
+    /// the weekly game log). Empty if the `games` table isn't populated yet.
+    func fetchSeasonGames(team: String, season: Int) async throws -> [SupabaseGame] {
+        guard !team.isEmpty else { return [] }
+        return try await optionalTable(
+            table: "games",
+            query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "season", value: "eq.\(season)"),
+                URLQueryItem(name: "or", value: "(home_team.eq.\(team),away_team.eq.\(team))"),
+                URLQueryItem(name: "order", value: "week.asc"),
+                URLQueryItem(name: "limit", value: "40"),
+            ]
+        )
+    }
+
     /// Next scheduled games for a team, ordered by kickoff. Empty if the `games`
     /// table isn't populated yet (UI shows "coming soon" rather than fabricating).
     func fetchUpcomingGames(team: String, limit: Int = 5) async throws -> [SupabaseGame] {

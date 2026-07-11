@@ -120,6 +120,8 @@ struct SupabaseGame: Identifiable, Codable, Hashable {
     var kickoffAt: String?
     var status: String?
     var venue: String?
+    var source: String?
+    var updatedAt: String?
 
     var id: String { providerGameId }
 
@@ -140,6 +142,8 @@ struct SupabaseGame: Identifiable, Codable, Hashable {
         case kickoffAt = "kickoff_at"
         case status
         case venue
+        case source
+        case updatedAt = "updated_at"
     }
 }
 
@@ -165,6 +169,8 @@ struct SupabaseWeeklyStat: Identifiable, Codable, Hashable {
     var fantasyPointsPpr: Double?
     var fantasyPointsHalfPpr: Double?
     var fantasyPointsStandard: Double?
+    var source: String?
+    var updatedAt: String?
 
     var id: String { "\(playerId)-\(season ?? 0)-\(week ?? 0)" }
 
@@ -188,6 +194,8 @@ struct SupabaseWeeklyStat: Identifiable, Codable, Hashable {
         case fantasyPointsPpr = "fantasy_points_ppr"
         case fantasyPointsHalfPpr = "fantasy_points_half_ppr"
         case fantasyPointsStandard = "fantasy_points_standard"
+        case source
+        case updatedAt = "updated_at"
     }
 }
 
@@ -205,6 +213,8 @@ struct AdvancedStat: Identifiable, Codable, Hashable {
     var yardsPerRouteRun: Double?
     var expectedFantasyPoints: Double?
     var fantasyPointsOverExpected: Double?
+    var source: String?
+    var updatedAt: String?
 
     var id: String { "\(playerId)-\(season ?? 0)-\(week ?? 0)" }
 
@@ -220,6 +230,8 @@ struct AdvancedStat: Identifiable, Codable, Hashable {
         case yardsPerRouteRun = "yards_per_route_run"
         case expectedFantasyPoints = "expected_fantasy_points"
         case fantasyPointsOverExpected = "fantasy_points_over_expected"
+        case source
+        case updatedAt = "updated_at"
     }
 }
 
