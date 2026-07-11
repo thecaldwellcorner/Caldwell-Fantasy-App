@@ -23,6 +23,12 @@ actor GroundedCoach {
         #endif
 
         if players.isEmpty {
+            if isRosterQuestion(question), let ctx = await SleeperContextBox.shared.get() {
+                #if DEBUG
+                print("🧠 Coach using connected Sleeper roster: \(ctx.leagueName)")
+                #endif
+                return await rosterAnswer(question, ctx)
+            }
             return notIdentified(question)
         }
         if players.count > 3 {
@@ -281,6 +287,108 @@ actor GroundedCoach {
             missingDataWarnings: missing(a) + missing(b),
             kind: .trade
         )
+    }
+
+    // MARK: Connected-roster answers
+
+    private func isRosterQuestion(_ q: String) -> Bool {
+        let l = q.lowercased()
+        let keys = ["start", "sit", "lineup", "my team", "my roster", "who should i",
+                    "pick up", "waiver", "need", "roster", "bench", "add", "drop"]
+        return keys.contains { l.contains($0) }
+    }
+
+    private func rosterAnswer(_ question: String, _ ctx: SleeperRosterContext) async -> AssistantAnswer {
+        let players = (try? await service.fetchPlayersBySleeperIds(ctx.allSleeperIds)) ?? []
+        guard !players.isEmpty else {
+            return .unavailable(for: "your \(ctx.leagueName) roster",
+                                warnings: ["Couldn't match your Sleeper roster to the player database."])
+        }
+        let weekly = (try? await service.fetchWeeklyForPlayerIds(players.map(\.playerId))) ?? []
+        let season = weekly.compactMap(\.season).max()
+
+        var agg: [String: (pts: Double, games: Int)] = [:]
+        for w in weekly where w.season == season {
+            var e = agg[w.playerId] ?? (0, 0)
+            e.pts += w.fantasyPointsPpr ?? 0
+            e.games += 1
+            agg[w.playerId] = e
+        }
+        let starterSet = Set(ctx.starterSleeperIds)
+        struct Row { let name: String; let pos: String; let ppg: Double?; let starter: Bool }
+        let rows: [Row] = players.map { p in
+            let e = agg[p.playerId]
+            let ppg = (e?.games ?? 0) > 0 ? (e!.pts / Double(e!.games)) : nil
+            let starter = p.sleeperId.map { starterSet.contains($0) } ?? false
+            return Row(name: p.displayName, pos: (p.position ?? "").uppercased(), ppg: ppg, starter: starter)
+        }
+
+        let withData = rows.filter { $0.ppg != nil }.count
+        let conf: Confidence = withData >= players.count / 2 && season != nil ? .medium : .low
+        let seasonText = season.map(String.init) ?? "—"
+        let lower = question.lowercased()
+
+        // Best player per skill position by PPG.
+        func best(_ pos: String) -> Row? {
+            rows.filter { $0.pos == pos && $0.ppg != nil }.max { ($0.ppg ?? 0) < ($1.ppg ?? 0) }
+        }
+        let topByPos = ["QB", "RB", "WR", "TE"].compactMap { pos -> KeyMetric? in
+            guard let r = best(pos) else { return nil }
+            let g = FantasyGrade.weeklyPoints(r.ppg, position: pos)
+            return KeyMetric(label: "\(pos): \(r.name)", value: "\(fmt(r.ppg)) PPG",
+                             note: gradeNote(g), sentiment: sentiment(g))
+        }
+
+        if lower.contains("pick up") || lower.contains("waiver") || lower.contains("add") {
+            return AssistantAnswer(
+                finalCall: "Waiver targets need the free-agent pool",
+                verdictTag: nil, dataAvailable: true, confidence: conf.score, dataLastUpdated: nil,
+                modelScore: nil, keyMetrics: topByPos, riskFactors: [],
+                aiExplanation:
+                    "I can see your \(ctx.leagueName) roster, but I don't yet have the league's available/free-agent "
+                    + "pool loaded, so I won't invent pickups. Your current position strengths (season \(seasonText) PPG) are shown below.",
+                caldwellTake: AssistantAnswer.caldwellTakePlaceholder,
+                missingDataWarnings: ["Free-agent/waiver pool for this league isn't loaded yet."],
+                kind: .waiver)
+        }
+
+        if lower.contains("need") {
+            let weakest = ["QB", "RB", "WR", "TE"].compactMap { pos -> (String, Double)? in
+                best(pos).flatMap { r in r.ppg.map { (pos, $0) } }
+            }.min { $0.1 < $1.1 }
+            let call = weakest.map { "Your thinnest starting spot is \($0.0)" } ?? "Roster need — insufficient data"
+            return AssistantAnswer(
+                finalCall: call, verdictTag: "ROSTER", dataAvailable: true, confidence: conf.score,
+                dataLastUpdated: nil, modelScore: nil, keyMetrics: topByPos, riskFactors: [],
+                aiExplanation:
+                    "Based on your \(ctx.leagueName) roster and season \(seasonText) PPG, "
+                    + (weakest.map { "\($0.0) is your lowest-scoring starting position (\(fmt($0.1)) PPG from your best option)." }
+                        ?? "there isn't enough stored production to rank your positions.")
+                    + " Confidence: \(conf.label).",
+                caldwellTake: AssistantAnswer.caldwellTakePlaceholder,
+                missingDataWarnings: withData < players.count ? ["Some roster players have no stored stats."] : [],
+                kind: nil)
+        }
+
+        // Default: start / lineup recommendation.
+        let starters = rows.filter { $0.starter && $0.ppg != nil }.sorted { ($0.ppg ?? 0) > ($1.ppg ?? 0) }
+        let benchBeatingStarter = rows.filter { !$0.starter && $0.ppg != nil }.compactMap { b -> String? in
+            guard let starterWorst = starters.filter({ $0.pos == b.pos }).min(by: { ($0.ppg ?? 0) < ($1.ppg ?? 0) }) else { return nil }
+            return (b.ppg ?? 0) > (starterWorst.ppg ?? 0) + 1 ? "\(b.name) (\(fmt(b.ppg)) PPG) is outscoring your starting \(b.pos) \(starterWorst.name) (\(fmt(starterWorst.ppg)))" : nil
+        }
+        return AssistantAnswer(
+            finalCall: "Lineup read for \(ctx.leagueName)",
+            verdictTag: "LINEUP", dataAvailable: true, confidence: conf.score, dataLastUpdated: nil,
+            modelScore: nil, keyMetrics: topByPos,
+            riskFactors: benchBeatingStarter,
+            aiExplanation:
+                "Grounded in your connected \(ctx.leagueName) roster and season \(seasonText) PPG (\(ctx.scoringFormat)). "
+                + "Top scorers by position are below. "
+                + (benchBeatingStarter.isEmpty ? "No bench player is clearly outscoring a starter." : "Consider the start/sit swaps in Risk Factors.")
+                + " Confidence: \(conf.label).",
+            caldwellTake: AssistantAnswer.caldwellTakePlaceholder,
+            missingDataWarnings: withData < players.count ? ["Some roster players have no stored stats."] : [],
+            kind: .startSit)
     }
 
     private func notIdentified(_ q: String) -> AssistantAnswer {
