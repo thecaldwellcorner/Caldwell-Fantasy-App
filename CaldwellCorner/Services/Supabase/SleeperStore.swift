@@ -44,6 +44,23 @@ struct ConnectedRoster: Equatable {
     var unmatched: [String]
 }
 
+/// The connected Sleeper account plus ALL of the user's leagues, persisted so the
+/// League screen can switch between them (identified by platform_league_id).
+struct SleeperAccount: Codable, Equatable {
+    var appUserId: String
+    var userId: String
+    var username: String
+    var displayName: String
+    var avatar: String?
+    var season: Int
+    var leagues: [SleeperLeague]
+    var selectedLeagueId: String?
+
+    var selectedLeague: SleeperLeague? {
+        leagues.first { $0.leagueId == selectedLeagueId } ?? leagues.first
+    }
+}
+
 // MARK: - Store
 
 @MainActor
@@ -62,6 +79,9 @@ final class SleeperStore: ObservableObject {
     @Published var phase: Phase = .disconnected
     @Published var connection: SleeperConnection?
     @Published var roster: ConnectedRoster?
+    @Published var account: SleeperAccount?
+    @Published var isSwitching = false
+    @Published var loadError: String?
 
     private let api = SleeperAPIService.shared
     private let supabase = SupabaseService.shared
@@ -71,8 +91,14 @@ final class SleeperStore: ObservableObject {
 
     private let defaults = UserDefaults.standard
     private let connectionKey = "ciq.sleeperConnection"
+    private let accountKey = "ciq.sleeperAccount"
 
     init() {
+        // Restore the multi-league account + the last selected league's roster.
+        if let data = defaults.data(forKey: accountKey),
+           let savedAccount = try? JSONDecoder().decode(SleeperAccount.self, from: data) {
+            account = savedAccount
+        }
         if let data = defaults.data(forKey: connectionKey),
            let saved = try? JSONDecoder().decode(SleeperConnection.self, from: data) {
             connection = saved
@@ -113,66 +139,110 @@ final class SleeperStore: ObservableObject {
 
             pendingUser = user
             pendingSeason = Int(used) ?? 0
+            let acct = SleeperAccount(
+                appUserId: session.userId, userId: user.userId, username: user.username ?? "",
+                displayName: user.displayName ?? "", avatar: user.avatar, season: pendingSeason,
+                leagues: leagues, selectedLeagueId: account?.selectedLeagueId
+            )
+            account = acct
+            persistAccount(acct)
             phase = .leagues(leagues)
         } catch {
             phase = .failed(message(error))
         }
     }
 
+    /// Initial pick from the connect flow.
     func selectLeague(_ league: SleeperLeague) async {
-        guard let user = pendingUser else { phase = .failed("Missing connected user."); return }
-        phase = .syncing
+        await activate(league, fromConnectFlow: true)
+    }
+
+    /// Switch to a different connected league from the League screen.
+    func switchLeague(_ league: SleeperLeague) async {
+        guard account?.selectedLeagueId != league.leagueId else { return }
+        await activate(league, fromConnectFlow: false)
+    }
+
+    /// Retry loading the currently selected league.
+    func reloadSelected() async {
+        guard let league = account?.selectedLeague else { return }
+        await activate(league, fromConnectFlow: false)
+    }
+
+    private func activate(_ league: SleeperLeague, fromConnectFlow: Bool) async {
+        guard var acct = account, !acct.userId.isEmpty else {
+            phase = .failed("Missing connected Sleeper account.")
+            return
+        }
+        #if DEBUG
+        print("👆 League tapped: \(league.name ?? "?") — platform_league_id \(league.leagueId)")
+        #endif
+        isSwitching = true
+        loadError = nil
+        roster = nil  // clear the previous league's content before showing the new one
+        if fromConnectFlow { phase = .syncing }
+
         do {
             let session = try await auth.ensureSession()
-            #if DEBUG
-            print("📋 Selected league: \(league.name ?? "?") (\(league.leagueId))")
-            #endif
-
             async let usersF = api.fetchLeagueUsers(leagueId: league.leagueId)
             async let rostersF = api.fetchRosters(leagueId: league.leagueId)
             let users = try await usersF
             let rosters = try await rostersF
             #if DEBUG
-            print("🧩 Rosters returned: \(rosters.count); league users: \(users.count)")
+            print("🧩 Rosters returned: \(rosters.count) for platform_league_id \(league.leagueId)")
             #endif
 
-            guard let mine = rosters.first(where: { $0.ownerId == user.userId }) else {
-                phase = .failed("Couldn't find your team in that league.")
+            guard let mine = rosters.first(where: { $0.ownerId == acct.userId }) else {
+                loadError = "Couldn't find your team in \(league.name ?? "that league")."
+                isSwitching = false
+                if fromConnectFlow { phase = .failed(loadError ?? "Load failed") }
                 return
             }
             #if DEBUG
-            print("✅ User roster matched: roster_id \(mine.rosterId), owner_id \(user.userId)")
+            print("✅ User roster matched: roster_id \(mine.rosterId), owner_id \(acct.userId)")
             #endif
 
-            let teamName = users.first(where: { $0.userId == user.userId })?.teamName ?? (user.displayName ?? "My Team")
+            let teamName = users.first(where: { $0.userId == acct.userId })?.teamName ?? acct.displayName
             let starters = mine.starters ?? []
             let all = mine.players ?? []
             let bench = all.filter { !starters.contains($0) }
 
             let conn = SleeperConnection(
-                appUserId: session.userId, userId: user.userId, username: user.username ?? "",
-                displayName: user.displayName ?? "", avatar: user.avatar,
+                appUserId: session.userId, userId: acct.userId, username: acct.username,
+                displayName: acct.displayName, avatar: acct.avatar,
                 leagueId: league.leagueId, leagueName: league.name ?? "League",
-                scoringFormat: league.scoringFormat, season: pendingSeason,
+                scoringFormat: league.scoringFormat, season: acct.season,
                 teamName: teamName, starterIds: starters, benchIds: bench, allPlayerIds: all
             )
             connection = conn
             persist(conn)
+
+            acct.selectedLeagueId = league.leagueId
+            acct.appUserId = session.userId
+            account = acct
+            persistAccount(acct)
+
             await resolveRoster()
             phase = .connected
+            isSwitching = false
 
-            // Persist to Supabase with the authenticated user's JWT (RLS-scoped).
             await syncToSupabase(appUserId: session.userId, accessToken: session.accessToken,
-                                 user: user, league: league, rosters: rosters)
+                                 league: league, rosters: rosters)
         } catch {
-            phase = .failed(message(error))
+            loadError = message(error)
+            isSwitching = false
+            if fromConnectFlow { phase = .failed(loadError ?? "Load failed") }
         }
     }
 
     func disconnect() {
         connection = nil
         roster = nil
+        account = nil
+        loadError = nil
+        isSwitching = false
         defaults.removeObject(forKey: connectionKey)
+        defaults.removeObject(forKey: accountKey)
         phase = .disconnected
         Task { await SleeperContextBox.shared.set(nil) }
     }
@@ -205,29 +275,42 @@ final class SleeperStore: ObservableObject {
         if let data = try? JSONEncoder().encode(conn) { defaults.set(data, forKey: connectionKey) }
     }
 
+    private func persistAccount(_ acct: SleeperAccount) {
+        if let data = try? JSONEncoder().encode(acct) { defaults.set(data, forKey: accountKey) }
+    }
+
     private func syncToSupabase(
         appUserId: String, accessToken: String,
-        user: SleeperUser, league: SleeperLeague, rosters: [SleeperRoster]
+        league: SleeperLeague, rosters: [SleeperRoster]
     ) async {
+        guard let acct = account else { return }
         let now = ISO8601DateFormatter().string(from: Date())
+        let avatarURL = acct.avatar.map { "https://sleepercdn.com/avatars/thumbs/\($0)" }
         do {
             try await supabase.upsert(
                 table: "connected_fantasy_accounts",
                 rows: [ConnectedAccountRow(
-                    app_user_id: appUserId, platform: "sleeper", platform_user_id: user.userId,
-                    platform_username: user.username, display_name: user.displayName,
-                    avatar_url: user.avatarURL?.absoluteString, connected_at: now, updated_at: now)],
+                    app_user_id: appUserId, platform: "sleeper", platform_user_id: acct.userId,
+                    platform_username: acct.username, display_name: acct.displayName,
+                    avatar_url: avatarURL, connected_at: now, updated_at: now)],
                 onConflict: "app_user_id,platform", accessToken: accessToken)
+
+            // Persist selection: clear selected on all of the user's leagues, then
+            // mark the chosen league selected = true.
+            try await supabase.setLeaguesUnselected(appUserId: appUserId, accessToken: accessToken)
 
             let leagueRowId = await supabase.existingLeagueRowId(
                 appUserId: appUserId, platform: "sleeper", platformLeagueId: league.leagueId,
                 accessToken: accessToken) ?? UUID().uuidString
+            #if DEBUG
+            print("🆔 Supabase league UUID: \(leagueRowId) (platform_league_id \(league.leagueId))")
+            #endif
 
             try await supabase.upsert(
                 table: "fantasy_leagues",
                 rows: [LeagueRow(
                     id: leagueRowId, app_user_id: appUserId, platform: "sleeper",
-                    platform_league_id: league.leagueId, name: league.name, season: pendingSeason,
+                    platform_league_id: league.leagueId, name: league.name, season: acct.season,
                     total_rosters: league.totalRosters, scoring_settings: league.scoringSettings,
                     roster_positions: league.rosterPositions, status: league.status,
                     selected: true, synced_at: now)],
@@ -236,17 +319,17 @@ final class SleeperStore: ObservableObject {
             let rosterRows = rosters.map { r in
                 RosterRow(
                     id: UUID().uuidString, fantasy_league_id: leagueRowId, platform_roster_id: r.rosterId,
-                    platform_owner_id: r.ownerId, is_user_roster: r.ownerId == user.userId,
+                    platform_owner_id: r.ownerId, is_user_roster: r.ownerId == acct.userId,
                     players: r.players, starters: r.starters, reserve: r.reserve, taxi: r.taxi, synced_at: now)
             }
             try await supabase.upsert(table: "fantasy_rosters", rows: rosterRows,
                                       onConflict: "fantasy_league_id,platform_roster_id", accessToken: accessToken)
             #if DEBUG
-            print("💾 Supabase save success: account + league + \(rosterRows.count) rosters")
+            print("💾 Supabase selected-league update success: \(leagueRowId) selected=true, \(rosterRows.count) rosters")
             #endif
         } catch {
             #if DEBUG
-            print("⚠️ Supabase save failed (non-blocking): \(message(error))")
+            print("⚠️ Supabase selected-league update failed (non-blocking): \(message(error))")
             #endif
         }
     }

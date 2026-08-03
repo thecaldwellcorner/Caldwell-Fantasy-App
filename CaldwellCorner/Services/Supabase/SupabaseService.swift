@@ -351,6 +351,40 @@ actor SupabaseService {
         }
     }
 
+    /// Clear `selected` on all of a user's fantasy_leagues (before marking the
+    /// chosen one selected). Scoped to app_user_id and sent with the user's JWT.
+    func setLeaguesUnselected(appUserId: String, accessToken: String?) async throws {
+        guard SupabaseConfig.isConfigured, let restURL = SupabaseConfig.restURL else {
+            throw ServiceError.notConfigured
+        }
+        guard var comps = URLComponents(
+            url: restURL.appendingPathComponent("fantasy_leagues"), resolvingAgainstBaseURL: false
+        ) else { throw ServiceError.badURL }
+        comps.queryItems = [URLQueryItem(name: "app_user_id", value: "eq.\(appUserId)")]
+        guard let url = comps.url else { throw ServiceError.badURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        let key = SupabaseConfig.anonKey
+        request.setValue(key, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken ?? key)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try JSONEncoder().encode(["selected": false])
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw ServiceError.transport(error)
+        }
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw ServiceError.http(status: http.statusCode, resource: "fantasy_leagues",
+                                    body: String(data: data, encoding: .utf8) ?? "")
+        }
+    }
+
     /// The most recent season that has any weekly stats.
     private func latestStatsSeason() async throws -> Int? {
         let rows: [RankSeasonRow] = try await get(

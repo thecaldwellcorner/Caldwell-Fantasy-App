@@ -13,6 +13,10 @@ struct LeagueDashboardView: View {
 
                 sleeperEntry
 
+                if let account = sleeper.account {
+                    connectedSleeperSection(account)
+                }
+
                 if state.leagues.count > 1 { leaguePicker }
 
                 if let league {
@@ -44,6 +48,100 @@ struct LeagueDashboardView: View {
             .card(padding: Theme.Spacing.md)
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Connected Sleeper league (selector + selected league's real data)
+
+    @ViewBuilder
+    private func connectedSleeperSection(_ account: SleeperAccount) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            DSEyebrow(text: "Sleeper League", color: Theme.Colors.accent)
+            leagueSelector(account)
+            sleeperContent
+        }
+    }
+
+    private func leagueSelector(_ account: SleeperAccount) -> some View {
+        Menu {
+            ForEach(account.leagues) { lg in
+                Button {
+                    Task { await sleeper.switchLeague(lg) }
+                } label: {
+                    if account.selectedLeagueId == lg.leagueId {
+                        Label(lg.name ?? "League", systemImage: "checkmark")
+                    } else {
+                        Text(lg.name ?? "League")
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                Image(systemName: "sportscourt.fill").foregroundStyle(Theme.Colors.accent)
+                Text(account.selectedLeague?.name ?? "Select a league").dsCardTitle()
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 12)).foregroundStyle(Theme.Colors.textTertiary)
+            }
+            .card(padding: Theme.Spacing.md)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var sleeperContent: some View {
+        if sleeper.isSwitching {
+            HStack(spacing: Theme.Spacing.sm) {
+                ProgressView().tint(Theme.Colors.accent)
+                Text("Loading league…").dsCaption()
+                Spacer()
+            }
+            .padding(.vertical, Theme.Spacing.lg)
+        } else if let error = sleeper.loadError {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text(error).dsCallout().foregroundStyle(Theme.Colors.negative)
+                Button("Retry") { Task { await sleeper.reloadSelected() } }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.accent)
+                    .buttonStyle(.plain)
+            }
+            .card()
+        } else if let conn = sleeper.connection {
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(conn.teamName).dsCardTitle()
+                    Text("\(conn.scoringFormat) · \(conn.season) · @\(conn.username)").dsCaption()
+                }
+                if let roster = sleeper.roster {
+                    sleeperRosterGroup("Starters", roster.starters)
+                    sleeperRosterGroup("Bench", roster.bench)
+                }
+            }
+        }
+    }
+
+    private func sleeperRosterGroup(_ title: String, _ players: [RankedPlayer]) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack {
+                Text(title).dsSectionTitle()
+                Spacer()
+                Text("\(players.count)").dsCaption()
+            }
+            ForEach(players) { player in
+                NavigationLink { SupabasePlayerDetailView(player: player) } label: {
+                    HStack(spacing: Theme.Spacing.md) {
+                        PlayerAvatar(name: player.displayName, position: player.position ?? "", size: 34)
+                        Text(player.displayName).dsCardTitle().lineLimit(1)
+                        if let pos = player.position, !pos.isEmpty {
+                            PositionBadge(position: pos, compact: true)
+                        }
+                        Spacer()
+                        Text(player.team?.isEmpty == false ? player.team! : "FA").dsCaption()
+                    }
+                    .card(padding: Theme.Spacing.md)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var leaguePicker: some View {
