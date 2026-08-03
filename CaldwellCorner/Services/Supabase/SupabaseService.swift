@@ -291,7 +291,9 @@ actor SupabaseService {
 
     /// Existing fantasy_leagues.id for an app user + platform + league (to keep
     /// the uuid stable across re-syncs so roster foreign keys line up).
-    func existingLeagueRowId(appUserId: String, platform: String, platformLeagueId: String) async -> String? {
+    func existingLeagueRowId(
+        appUserId: String, platform: String, platformLeagueId: String, accessToken: String?
+    ) async -> String? {
         struct Row: Decodable { let id: String }
         let rows: [Row] = (try? await get(
             table: "fantasy_leagues",
@@ -301,7 +303,8 @@ actor SupabaseService {
                 URLQueryItem(name: "platform", value: "eq.\(platform)"),
                 URLQueryItem(name: "platform_league_id", value: "eq.\(platformLeagueId)"),
                 URLQueryItem(name: "limit", value: "1"),
-            ]
+            ],
+            bearer: accessToken
         )) ?? []
         return rows.first?.id
     }
@@ -309,7 +312,9 @@ actor SupabaseService {
     /// Upsert rows into a table (POST + `resolution=merge-duplicates`). Used to
     /// persist the connected Sleeper account / league / rosters. Writes go
     /// through the publishable key under the table's RLS policy.
-    func upsert<Row: Encodable>(table: String, rows: [Row], onConflict: String) async throws {
+    func upsert<Row: Encodable>(
+        table: String, rows: [Row], onConflict: String, accessToken: String? = nil
+    ) async throws {
         guard !rows.isEmpty else { return }
         guard SupabaseConfig.isConfigured, let restURL = SupabaseConfig.restURL else {
             throw ServiceError.notConfigured
@@ -324,7 +329,8 @@ actor SupabaseService {
         request.httpMethod = "POST"
         let key = SupabaseConfig.anonKey
         request.setValue(key, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        // Authenticated writes send the user's JWT so RLS (app_user_id = auth.uid()) passes.
+        request.setValue("Bearer \(accessToken ?? key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
         request.httpBody = try JSONEncoder().encode(rows)
@@ -484,7 +490,7 @@ actor SupabaseService {
         return all
     }
 
-    private func get<T: Decodable>(table: String, query: [URLQueryItem]) async throws -> T {
+    private func get<T: Decodable>(table: String, query: [URLQueryItem], bearer: String? = nil) async throws -> T {
         guard SupabaseConfig.isConfigured, let restURL = SupabaseConfig.restURL else {
             throw ServiceError.notConfigured
         }
@@ -505,7 +511,8 @@ actor SupabaseService {
         request.httpMethod = "GET"
         let key = SupabaseConfig.anonKey
         request.setValue(key, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        // Publishable key for public reads; the user's JWT for auth-scoped tables.
+        request.setValue("Bearer \(bearer ?? key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let data: Data

@@ -62,6 +62,20 @@ struct RootView: View {
                 .tag(RootTab.reels)
         }
         .tint(Theme.Colors.accent)
+        .task {
+            // Ensure a Supabase session exists on launch (anonymous if needed),
+            // reusing the persisted session on future launches.
+            do {
+                let session = try await SupabaseAuth.shared.ensureSession()
+                #if DEBUG
+                print("🔐 Supabase session ready on launch — user id \(session.userId)")
+                #endif
+            } catch {
+                #if DEBUG
+                print("⚠️ Supabase auth on launch failed: \(error.localizedDescription)")
+                #endif
+            }
+        }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
                 .presentationDetents([.large])

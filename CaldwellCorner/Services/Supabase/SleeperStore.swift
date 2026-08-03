@@ -63,24 +63,16 @@ final class SleeperStore: ObservableObject {
     @Published var connection: SleeperConnection?
     @Published var roster: ConnectedRoster?
 
-    let appUserId: String
-
     private let api = SleeperAPIService.shared
     private let supabase = SupabaseService.shared
+    private let auth = SupabaseAuth.shared
     private var pendingUser: SleeperUser?
     private var pendingSeason: Int = 0
 
     private let defaults = UserDefaults.standard
-    private let appUserKey = "ciq.appUserId"
     private let connectionKey = "ciq.sleeperConnection"
 
     init() {
-        if let existing = defaults.string(forKey: appUserKey) {
-            appUserId = existing
-        } else {
-            appUserId = UUID().uuidString
-            defaults.set(appUserId, forKey: appUserKey)
-        }
         if let data = defaults.data(forKey: connectionKey),
            let saved = try? JSONDecoder().decode(SleeperConnection.self, from: data) {
             connection = saved
@@ -94,7 +86,17 @@ final class SleeperStore: ObservableObject {
     func connect(username: String) async {
         phase = .connecting
         do {
+            // RLS requires an authenticated session before any league sync.
+            let session = try await auth.ensureSession()
+            #if DEBUG
+            print("🔐 Supabase auth user id (app_user_id): \(session.userId)")
+            #endif
+
             let user = try await api.fetchUser(username: username)
+            #if DEBUG
+            print("🟢 Sleeper user resolved: @\(user.username ?? "?") (user_id \(user.userId))")
+            #endif
+
             let state = try await api.fetchState()
             let seasons = [state.leagueSeason, state.season, state.previousSeason].compactMap { $0 }
 
@@ -104,6 +106,9 @@ final class SleeperStore: ObservableObject {
                 let found = (try? await api.fetchLeagues(userId: user.userId, season: s)) ?? []
                 if !found.isEmpty { leagues = found; used = s; break }
             }
+            #if DEBUG
+            print("🏈 Leagues returned: \(leagues.count) (season \(used))")
+            #endif
             guard !leagues.isEmpty else { phase = .failed(SleeperAPIService.SleeperError.noLeagues.errorDescription ?? "No leagues"); return }
 
             pendingUser = user
@@ -118,22 +123,34 @@ final class SleeperStore: ObservableObject {
         guard let user = pendingUser else { phase = .failed("Missing connected user."); return }
         phase = .syncing
         do {
+            let session = try await auth.ensureSession()
+            #if DEBUG
+            print("📋 Selected league: \(league.name ?? "?") (\(league.leagueId))")
+            #endif
+
             async let usersF = api.fetchLeagueUsers(leagueId: league.leagueId)
             async let rostersF = api.fetchRosters(leagueId: league.leagueId)
             let users = try await usersF
             let rosters = try await rostersF
+            #if DEBUG
+            print("🧩 Rosters returned: \(rosters.count); league users: \(users.count)")
+            #endif
 
             guard let mine = rosters.first(where: { $0.ownerId == user.userId }) else {
                 phase = .failed("Couldn't find your team in that league.")
                 return
             }
+            #if DEBUG
+            print("✅ User roster matched: roster_id \(mine.rosterId), owner_id \(user.userId)")
+            #endif
+
             let teamName = users.first(where: { $0.userId == user.userId })?.teamName ?? (user.displayName ?? "My Team")
             let starters = mine.starters ?? []
             let all = mine.players ?? []
             let bench = all.filter { !starters.contains($0) }
 
             let conn = SleeperConnection(
-                appUserId: appUserId, userId: user.userId, username: user.username ?? "",
+                appUserId: session.userId, userId: user.userId, username: user.username ?? "",
                 displayName: user.displayName ?? "", avatar: user.avatar,
                 leagueId: league.leagueId, leagueName: league.name ?? "League",
                 scoringFormat: league.scoringFormat, season: pendingSeason,
@@ -144,8 +161,9 @@ final class SleeperStore: ObservableObject {
             await resolveRoster()
             phase = .connected
 
-            // Persist to Supabase (best-effort; local state already drives the UI).
-            await syncToSupabase(user: user, league: league, rosters: rosters)
+            // Persist to Supabase with the authenticated user's JWT (RLS-scoped).
+            await syncToSupabase(appUserId: session.userId, accessToken: session.accessToken,
+                                 user: user, league: league, rosters: rosters)
         } catch {
             phase = .failed(message(error))
         }
@@ -187,7 +205,10 @@ final class SleeperStore: ObservableObject {
         if let data = try? JSONEncoder().encode(conn) { defaults.set(data, forKey: connectionKey) }
     }
 
-    private func syncToSupabase(user: SleeperUser, league: SleeperLeague, rosters: [SleeperRoster]) async {
+    private func syncToSupabase(
+        appUserId: String, accessToken: String,
+        user: SleeperUser, league: SleeperLeague, rosters: [SleeperRoster]
+    ) async {
         let now = ISO8601DateFormatter().string(from: Date())
         do {
             try await supabase.upsert(
@@ -196,10 +217,11 @@ final class SleeperStore: ObservableObject {
                     app_user_id: appUserId, platform: "sleeper", platform_user_id: user.userId,
                     platform_username: user.username, display_name: user.displayName,
                     avatar_url: user.avatarURL?.absoluteString, connected_at: now, updated_at: now)],
-                onConflict: "app_user_id,platform")
+                onConflict: "app_user_id,platform", accessToken: accessToken)
 
             let leagueRowId = await supabase.existingLeagueRowId(
-                appUserId: appUserId, platform: "sleeper", platformLeagueId: league.leagueId) ?? UUID().uuidString
+                appUserId: appUserId, platform: "sleeper", platformLeagueId: league.leagueId,
+                accessToken: accessToken) ?? UUID().uuidString
 
             try await supabase.upsert(
                 table: "fantasy_leagues",
@@ -209,7 +231,7 @@ final class SleeperStore: ObservableObject {
                     total_rosters: league.totalRosters, scoring_settings: league.scoringSettings,
                     roster_positions: league.rosterPositions, status: league.status,
                     selected: true, synced_at: now)],
-                onConflict: "app_user_id,platform,platform_league_id")
+                onConflict: "app_user_id,platform,platform_league_id", accessToken: accessToken)
 
             let rosterRows = rosters.map { r in
                 RosterRow(
@@ -218,10 +240,13 @@ final class SleeperStore: ObservableObject {
                     players: r.players, starters: r.starters, reserve: r.reserve, taxi: r.taxi, synced_at: now)
             }
             try await supabase.upsert(table: "fantasy_rosters", rows: rosterRows,
-                                      onConflict: "fantasy_league_id,platform_roster_id")
+                                      onConflict: "fantasy_league_id,platform_roster_id", accessToken: accessToken)
+            #if DEBUG
+            print("💾 Supabase save success: account + league + \(rosterRows.count) rosters")
+            #endif
         } catch {
             #if DEBUG
-            print("⚠️ Sleeper Supabase sync failed (non-blocking): \(message(error))")
+            print("⚠️ Supabase save failed (non-blocking): \(message(error))")
             #endif
         }
     }
