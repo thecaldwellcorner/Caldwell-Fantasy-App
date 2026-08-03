@@ -266,6 +266,91 @@ actor SupabaseService {
         return !rows.isEmpty
     }
 
+    /// Resolve players by their Sleeper ids (roster player matching). Returns
+    /// lightweight rows with the uuid id for joining stats.
+    func fetchPlayersBySleeperIds(_ ids: [String]) async throws -> [RankedPlayer] {
+        let clean = ids.filter { !$0.isEmpty }
+        guard !clean.isEmpty else { return [] }
+        let rows: [RankPlayerRow] = try await get(
+            table: "players",
+            query: [
+                URLQueryItem(name: "select", value: "id,sleeper_id,full_name,position,team,age,height,weight"),
+                URLQueryItem(name: "sleeper_id", value: "in.(\(clean.joined(separator: ",")))"),
+                URLQueryItem(name: "limit", value: String(max(clean.count, 100))),
+            ]
+        )
+        return rows.map {
+            RankedPlayer(
+                playerId: $0.id, sleeperId: $0.sleeperId, fullName: $0.fullName ?? "",
+                position: $0.position, team: $0.team, age: $0.age, height: $0.height, weight: $0.weight,
+                latestSeason: nil, totalFantasyPointsPpr: nil, gamesPlayed: nil,
+                fantasyPointsPerGame: nil, recentUsage: nil, relevanceScore: nil
+            )
+        }
+    }
+
+    /// Existing fantasy_leagues.id for an app user + platform + league (to keep
+    /// the uuid stable across re-syncs so roster foreign keys line up).
+    func existingLeagueRowId(
+        appUserId: String, platform: String, platformLeagueId: String, accessToken: String?
+    ) async -> String? {
+        struct Row: Decodable { let id: String }
+        let rows: [Row] = (try? await get(
+            table: "fantasy_leagues",
+            query: [
+                URLQueryItem(name: "select", value: "id"),
+                URLQueryItem(name: "app_user_id", value: "eq.\(appUserId)"),
+                URLQueryItem(name: "platform", value: "eq.\(platform)"),
+                URLQueryItem(name: "platform_league_id", value: "eq.\(platformLeagueId)"),
+                URLQueryItem(name: "limit", value: "1"),
+            ],
+            bearer: accessToken
+        )) ?? []
+        return rows.first?.id
+    }
+
+    /// Upsert rows into a table (POST + `resolution=merge-duplicates`). Used to
+    /// persist the connected Sleeper account / league / rosters. Writes go
+    /// through the publishable key under the table's RLS policy.
+    func upsert<Row: Encodable>(
+        table: String, rows: [Row], onConflict: String, accessToken: String? = nil
+    ) async throws {
+        guard !rows.isEmpty else { return }
+        guard SupabaseConfig.isConfigured, let restURL = SupabaseConfig.restURL else {
+            throw ServiceError.notConfigured
+        }
+        guard var comps = URLComponents(
+            url: restURL.appendingPathComponent(table), resolvingAgainstBaseURL: false
+        ) else { throw ServiceError.badURL }
+        comps.queryItems = [URLQueryItem(name: "on_conflict", value: onConflict)]
+        guard let url = comps.url else { throw ServiceError.badURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        let key = SupabaseConfig.anonKey
+        request.setValue(key, forHTTPHeaderField: "apikey")
+        // Authenticated writes send the user's JWT so RLS (app_user_id = auth.uid()) passes.
+        request.setValue("Bearer \(accessToken ?? key)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try JSONEncoder().encode(rows)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw ServiceError.transport(error)
+        }
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            #if DEBUG
+            print("❌ Supabase upsert \(http.statusCode) \(table): \(body.prefix(300))")
+            #endif
+            throw ServiceError.http(status: http.statusCode, resource: table, body: body)
+        }
+    }
+
     /// The most recent season that has any weekly stats.
     private func latestStatsSeason() async throws -> Int? {
         let rows: [RankSeasonRow] = try await get(
@@ -291,6 +376,22 @@ actor SupabaseService {
                 URLQueryItem(name: "player_id", value: "eq.\(playerId)"),
                 URLQueryItem(name: "order", value: "season.desc,week.desc"),
                 URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+    }
+
+    /// Weekly stats for many players at once (used for roster-wide Coach
+    /// analysis). Paged past the 1000-row cap.
+    func fetchWeeklyForPlayerIds(_ uuids: [String]) async throws -> [SupabaseWeeklyStat] {
+        let clean = uuids.filter { !$0.isEmpty }
+        guard !clean.isEmpty else { return [] }
+        return try await getAllPages(
+            table: "player_weekly_stats",
+            query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "player_id", value: "in.(\(clean.joined(separator: ",")))"),
+                URLQueryItem(name: "week", value: "gt.0"),
+                URLQueryItem(name: "order", value: "id.asc"),
             ]
         )
     }
@@ -389,7 +490,7 @@ actor SupabaseService {
         return all
     }
 
-    private func get<T: Decodable>(table: String, query: [URLQueryItem]) async throws -> T {
+    private func get<T: Decodable>(table: String, query: [URLQueryItem], bearer: String? = nil) async throws -> T {
         guard SupabaseConfig.isConfigured, let restURL = SupabaseConfig.restURL else {
             throw ServiceError.notConfigured
         }
@@ -410,7 +511,8 @@ actor SupabaseService {
         request.httpMethod = "GET"
         let key = SupabaseConfig.anonKey
         request.setValue(key, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        // Publishable key for public reads; the user's JWT for auth-scoped tables.
+        request.setValue("Bearer \(bearer ?? key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let data: Data

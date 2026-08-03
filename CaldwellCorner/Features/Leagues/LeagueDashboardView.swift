@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LeagueDashboardView: View {
     @EnvironmentObject var state: AppState
+    @ObservedObject private var sleeper = SleeperStore.shared
 
     private var league: League? { state.selectedLeague }
 
@@ -9,6 +10,8 @@ struct LeagueDashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                 Text("League").dsScreenTitle()
+
+                sleeperEntry
 
                 if state.leagues.count > 1 { leaguePicker }
 
@@ -24,6 +27,23 @@ struct LeagueDashboardView: View {
         }
         .screenBackground()
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var sleeperEntry: some View {
+        NavigationLink { SleeperConnectView() } label: {
+            HStack(spacing: Theme.Spacing.md) {
+                DSIconBadge(systemName: "link", tint: Theme.Colors.accent, size: 38)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(sleeper.connection == nil ? "Connect Sleeper" : "Sleeper Connected").dsCardTitle()
+                    Text(sleeper.connection?.leagueName ?? "Import your real league & roster").dsCaption()
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+            .card(padding: Theme.Spacing.md)
+        }
+        .buttonStyle(.plain)
     }
 
     private var leaguePicker: some View {
